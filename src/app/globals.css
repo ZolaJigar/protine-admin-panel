@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  --green:        #1B4332;
+  --green-mid:    #2D6A4F;
+  --green-light:  #40916C;
+  --amber:        #F59E0B;
+  --cream:        #FFF8F0;
+  --charcoal:     #1C1917;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: #F1F5F0;
+  color: #1C1917;
+  font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #E7E5E4; }
+::-webkit-scrollbar-thumb { background: #40916C; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #1B4332; }
+
+.Toastify__toast--success { background: #1B4332 !important; }
+.Toastify__toast--error   { background: #7F1D1D !important; }
+.Toastify__toast--warning { background: #92400E !important; }
+.Toastify__toast--info    { background: #1C3D5A !important; }
+.Toastify__progress-bar--success { background: #F59E0B !important; }
