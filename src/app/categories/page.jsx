@@ -145,10 +145,26 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const validateField = (key, val) => {
+    switch (key) {
+      case 'name': return !val.trim()      ? 'Name is required'
+                        : val.length > 255 ? 'Name must be under 255 characters' : '';
+      default:     return '';
+    }
+  };
+
+  const handleBlur = (key) => {
+    const val = form[key] ?? '';
+    const msg = validateField(key, val);
+    setFieldErrors((prev) => ({ ...prev, [key]: msg }));
+  };
+
   const validate = () => {
     const errors = {};
-    if (!form.name.trim())           errors.name = 'Name is required';
-    else if (form.name.length > 255) errors.name = 'Name must be under 255 characters';
+    ['name'].forEach((key) => {
+      const msg = validateField(key, form[key] ?? '');
+      if (msg) errors[key] = msg;
+    });
     return errors;
   };
 
@@ -187,6 +203,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             label="Name *"
             value={form.name}
             onChange={(e) => setField('name', e.target.value)}
+            onBlur={() => handleBlur('name')}
             error={fieldErrors.name}
           />
 

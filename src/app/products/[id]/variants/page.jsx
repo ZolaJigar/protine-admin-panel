@@ -200,17 +200,48 @@ function FormModal({ open, itemId, itemData, onClose, onSaved, fixedProductId })
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Regex: positive integers or decimals up to 2 decimal places
+  const PRICE_REGEX = /^\d+(\.\d{1,2})?$/;
+
+  const validateField = (key, val) => {
+    switch (key) {
+      case 'product_id':    return !val                        ? 'Product is required'                    : '';
+      case 'name':          return !val.trim()                 ? 'Variant name is required'
+                                 : val.length > 255            ? 'Max 255 characters'                     : '';
+      case 'mrp':           return val === '' || val === null  ? 'MRP is required'
+                                 : !PRICE_REGEX.test(val)      ? 'Enter a valid price (e.g. 99 or 99.99)' : '';
+      case 'selling_price': return val === '' || val === null  ? 'Selling price is required'
+                                 : !PRICE_REGEX.test(val)      ? 'Enter a valid price (e.g. 99 or 99.99)' : '';
+      case 'cost_price':    return val !== '' && !PRICE_REGEX.test(val)
+                                                               ? 'Enter a valid price (e.g. 99 or 99.99)' : '';
+      case 'weight_unit':   return form.weight && !val         ? 'Weight unit required when weight is set': '';
+      case 'barcode':       return val && val.length > 100     ? 'Max 100 characters'                     : '';
+      default:              return '';
+    }
+  };
+
+  // Block non-numeric keypresses on price fields
+  const handlePriceKeyDown = (e) => {
+    const ALLOWED_KEYS = ['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'];
+    if (e.ctrlKey || e.metaKey) return;
+    if (ALLOWED_KEYS.includes(e.key)) return;
+    if (/^\d$/.test(e.key)) return;
+    if (e.key === '.') { if (e.target.value.includes('.')) e.preventDefault(); return; }
+    e.preventDefault();
+  };
+
+  const handleBlur = (key) => {
+    const val = form[key] ?? '';
+    const msg = validateField(key, val);
+    setFieldErrors((prev) => ({ ...prev, [key]: msg }));
+  };
+
   const validate = () => {
     const errors = {};
-    if (!form.product_id)                                errors.product_id    = 'Product is required';
-    if (!form.name.trim())                               errors.name          = 'Name is required';
-    else if (form.name.length > 255)                     errors.name          = 'Max 255 characters';
-    if (form.mrp === '' || form.mrp === null)            errors.mrp           = 'MRP is required';
-    else if (isNaN(Number(form.mrp)) || Number(form.mrp) < 0) errors.mrp     = 'MRP must be 0 or more';
-    if (form.selling_price === '' || form.selling_price === null) errors.selling_price = 'Selling price is required';
-    else if (isNaN(Number(form.selling_price)) || Number(form.selling_price) < 0) errors.selling_price = 'Selling price must be 0 or more';
-    if (form.weight && !form.weight_unit)                errors.weight_unit   = 'Weight unit required when weight is set';
-    if (form.barcode && form.barcode.length > 100)       errors.barcode       = 'Max 100 characters';
+    ['product_id', 'name', 'mrp', 'selling_price', 'cost_price', 'weight_unit', 'barcode'].forEach((key) => {
+      const msg = validateField(key, form[key] ?? '');
+      if (msg) errors[key] = msg;
+    });
     return errors;
   };
 
@@ -276,6 +307,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved, fixedProductId })
               label="Product *"
               value={form.product_id}
               onChange={(e) => setField('product_id', e.target.value)}
+              onBlur={() => handleBlur('product_id')}
               options={products.map((p) => ({ label: p.name, value: String(p.id) }))}
               error={fieldErrors.product_id}
               disabled={productsLoading || !!fixedProductId}
@@ -286,6 +318,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved, fixedProductId })
               label="Variant Name *"
               value={form.name}
               onChange={(e) => setField('name', e.target.value)}
+              onBlur={() => handleBlur('name')}
               error={fieldErrors.name}
               required
             />
@@ -325,6 +358,8 @@ function FormModal({ open, itemId, itemData, onClose, onSaved, fixedProductId })
               label="MRP *"
               value={form.mrp}
               onChange={(e) => setField('mrp', e.target.value)}
+              onBlur={() => handleBlur('mrp')}
+              onKeyDown={handlePriceKeyDown}
               error={fieldErrors.mrp}
               slotProps={{ htmlInput: { inputMode: 'decimal' } }}
               required
@@ -333,6 +368,8 @@ function FormModal({ open, itemId, itemData, onClose, onSaved, fixedProductId })
               label="Selling Price *"
               value={form.selling_price}
               onChange={(e) => setField('selling_price', e.target.value)}
+              onBlur={() => handleBlur('selling_price')}
+              onKeyDown={handlePriceKeyDown}
               error={fieldErrors.selling_price}
               slotProps={{ htmlInput: { inputMode: 'decimal' } }}
               required
@@ -341,6 +378,9 @@ function FormModal({ open, itemId, itemData, onClose, onSaved, fixedProductId })
               label="Cost Price"
               value={form.cost_price}
               onChange={(e) => setField('cost_price', e.target.value)}
+              onBlur={() => handleBlur('cost_price')}
+              onKeyDown={handlePriceKeyDown}
+              error={fieldErrors.cost_price}
               slotProps={{ htmlInput: { inputMode: 'decimal' } }}
             />
           </Box>

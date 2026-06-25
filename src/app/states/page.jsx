@@ -67,15 +67,29 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     if (fieldErrors[key]) setFieldErrors((p) => ({ ...p, [key]: '' }));
   };
 
+  const validateField = (key, val) => {
+    switch (key) {
+      case 'name':       return !val.trim()      ? 'Name is required'
+                              : val.length > 255 ? 'Max 255 characters'                   : '';
+      case 'country_id': return !val             ? 'Country is required'                  : '';
+      case 'latitude':   return val && !/^-?\d+(\.\d+)?$/.test(val.trim()) ? 'Enter a valid latitude'  : '';
+      case 'longitude':  return val && !/^-?\d+(\.\d+)?$/.test(val.trim()) ? 'Enter a valid longitude' : '';
+      default:           return '';
+    }
+  };
+
+  const handleBlur = (key) => {
+    const val = form[key] ?? '';
+    const msg = validateField(key, val);
+    setFieldErrors((prev) => ({ ...prev, [key]: msg }));
+  };
+
   const validate = () => {
     const errors = {};
-    if (!form.name.trim())           errors.name       = 'Name is required';
-    else if (form.name.length > 255) errors.name       = 'Max 255 characters';
-    if (!form.country_id)            errors.country_id = 'Country is required';
-    if (form.latitude  && !/^-?\d+(\.\d+)?$/.test(form.latitude.trim()))  errors.latitude  = 'Enter a valid latitude';
-    if (form.longitude && !/^-?\d+(\.\d+)?$/.test(form.longitude.trim())) errors.longitude = 'Enter a valid longitude';
-    if (form.latitude  && form.latitude.length  > 255) errors.latitude  = 'Max 255 characters';
-    if (form.longitude && form.longitude.length > 255) errors.longitude = 'Max 255 characters';
+    ['name', 'country_id', 'latitude', 'longitude'].forEach((key) => {
+      const msg = validateField(key, form[key] ?? '');
+      if (msg) errors[key] = msg;
+    });
     return errors;
   };
 
@@ -113,6 +127,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             label="Country *"
             value={form.country_id}
             onChange={(e) => setField('country_id', e.target.value)}
+            onBlur={() => handleBlur('country_id')}
             options={countries.map((c) => ({ label: c.name, value: c.id }))}
             error={fieldErrors.country_id}
             disabled={countriesLoading}
@@ -126,6 +141,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             label="State Name *"
             value={form.name}
             onChange={(e) => setField('name', e.target.value)}
+            onBlur={() => handleBlur('name')}
             error={fieldErrors.name}
           />
 
@@ -134,6 +150,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               label="Latitude" placeholder="e.g. 22.2587"
               value={form.latitude}
               onChange={(e) => setField('latitude', e.target.value)}
+              onBlur={() => handleBlur('latitude')}
               error={fieldErrors.latitude}
               slotProps={{ htmlInput: { inputMode: 'decimal' } }}
             />
@@ -141,6 +158,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               label="Longitude" placeholder="e.g. 71.1924"
               value={form.longitude}
               onChange={(e) => setField('longitude', e.target.value)}
+              onBlur={() => handleBlur('longitude')}
               error={fieldErrors.longitude}
               slotProps={{ htmlInput: { inputMode: 'decimal' } }}
             />

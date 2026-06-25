@@ -199,12 +199,28 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const validateField = (key, val) => {
+    switch (key) {
+      case 'category_id': return !val                    ? 'Category is required'          : '';
+      case 'name':        return !val.trim()             ? 'Name is required'
+                               : val.length > 255        ? 'Max 255 characters'            : '';
+      case 'video':       return val && val.length > 255 ? 'Max 255 characters'            : '';
+      default:            return '';
+    }
+  };
+
+  const handleBlur = (key) => {
+    const val = form[key] ?? '';
+    const msg = validateField(key, val);
+    setFieldErrors((prev) => ({ ...prev, [key]: msg }));
+  };
+
   const validate = () => {
     const errors = {};
-    if (!form.category_id)                    errors.category_id = 'Category is required';
-    if (!form.name.trim())                    errors.name        = 'Name is required';
-    else if (form.name.length > 255)          errors.name        = 'Max 255 characters';
-    if (form.video && form.video.length > 255) errors.video      = 'Max 255 characters';
+    ['category_id', 'name', 'video'].forEach((key) => {
+      const msg = validateField(key, form[key] ?? '');
+      if (msg) errors[key] = msg;
+    });
     return errors;
   };
 
@@ -259,6 +275,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               label="Category *"
               value={form.category_id}
               onChange={(e) => setField('category_id', e.target.value)}
+              onBlur={() => handleBlur('category_id')}
               options={categories.map((c) => ({ label: c.name, value: c.id }))}
               error={fieldErrors.category_id}
               disabled={catsLoading}
@@ -269,6 +286,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               label="Product Name *"
               value={form.name}
               onChange={(e) => setField('name', e.target.value)}
+              onBlur={() => handleBlur('name')}
               error={fieldErrors.name}
               required
             />
@@ -304,6 +322,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             placeholder="https://youtube.com/watch?v=..."
             value={form.video}
             onChange={(e) => setField('video', e.target.value)}
+            onBlur={() => handleBlur('video')}
             error={fieldErrors.video}
           />
 

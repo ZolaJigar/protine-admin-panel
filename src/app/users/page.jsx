@@ -141,24 +141,40 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const validateField = (key, val) => {
+    switch (key) {
+      case 'name':     return !val.trim()                          ? 'Name is required'
+                            : val.length > 255                     ? 'Max 255 characters'      : '';
+      case 'email':    return !val.trim()                          ? 'Email is required'
+                            : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) ? 'Enter a valid email'
+                            : val.length > 255                     ? 'Max 255 characters'      : '';
+      case 'password': if (!isEdit) {
+                         return !val                               ? 'Password is required'
+                              : val.length < 6                     ? 'Min 6 characters'
+                              : val.length > 255                   ? 'Max 255 characters'      : '';
+                       } else if (changePassword) {
+                         return !val                               ? 'Enter new password'
+                              : val.length < 6                     ? 'Min 6 characters'        : '';
+                       }
+                       return '';
+      case 'role_id':  return !val                                 ? 'Role is required'        : '';
+      case 'phone':    return val && val.length > 20               ? 'Max 20 characters'       : '';
+      default:         return '';
+    }
+  };
+
+  const handleBlur = (key) => {
+    const val = form[key] ?? '';
+    const msg = validateField(key, val);
+    setFieldErrors((prev) => ({ ...prev, [key]: msg }));
+  };
+
   const validate = () => {
     const errors = {};
-    if (!form.name.trim())                           errors.name     = 'Name is required';
-    else if (form.name.length > 255)                 errors.name     = 'Max 255 characters';
-    if (!form.email.trim())                          errors.email    = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Enter a valid email';
-    else if (form.email.length > 255)                errors.email    = 'Max 255 characters';
-    if (!isEdit) {
-      if (!form.password)                            errors.password = 'Password is required';
-      else if (form.password.length < 6)             errors.password = 'Min 6 characters';
-      else if (form.password.length > 255)           errors.password = 'Max 255 characters';
-    } else if (changePassword) {
-      if (!form.password)                            errors.password = 'Enter new password';
-      else if (form.password.length < 6)             errors.password = 'Min 6 characters';
-    }
-    if (!form.role_id)                               errors.role_id  = 'Role is required';
-    if (form.gender && !GENDER_OPTIONS.includes(form.gender)) errors.gender = 'Invalid gender';
-    if (form.phone && form.phone.length > 20)        errors.phone    = 'Max 20 characters';
+    ['name', 'email', 'password', 'role_id', 'phone'].forEach((key) => {
+      const msg = validateField(key, form[key] ?? '');
+      if (msg) errors[key] = msg;
+    });
     return errors;
   };
 
@@ -255,6 +271,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               label="Name *"
               value={form.name}
               onChange={(e) => setField('name', e.target.value)}
+              onBlur={() => handleBlur('name')}
               error={fieldErrors.name}
               required
             />
@@ -263,6 +280,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               type="email"
               value={form.email}
               onChange={(e) => setField('email', e.target.value)}
+              onBlur={() => handleBlur('email')}
               error={fieldErrors.email}
               required
             />
@@ -284,6 +302,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={(e) => setField('password', e.target.value)}
+                  onBlur={() => handleBlur('password')}
                   error={fieldErrors.password}
                   slotProps={{ input: { endAdornment: passwordEndAdornment } }}
                 />
@@ -295,6 +314,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               type={showPassword ? 'text' : 'password'}
               value={form.password}
               onChange={(e) => setField('password', e.target.value)}
+              onBlur={() => handleBlur('password')}
               error={fieldErrors.password}
               slotProps={{ input: { endAdornment: passwordEndAdornment } }}
             />
@@ -306,6 +326,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               label="Role *"
               value={form.role_id}
               onChange={(e) => setField('role_id', e.target.value)}
+              onBlur={() => handleBlur('role_id')}
               options={roles.map((r) => ({ label: r.name, value: r.id }))}
               error={fieldErrors.role_id}
               disabled={rolesLoading}
@@ -330,6 +351,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             label="Phone"
             value={form.phone}
             onChange={(e) => setField('phone', e.target.value)}
+            onBlur={() => handleBlur('phone')}
             error={fieldErrors.phone}
           />
         </Box>

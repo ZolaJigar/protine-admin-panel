@@ -40,10 +40,20 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     }
   }, [open, isEdit, itemData]);
 
-  const validate = () => {
-    if (!name.trim())      return 'Name is required';
-    if (name.length > 255) return 'Max 255 characters';
+  const validateName = (val) => {
+    if (!val.trim())      return 'Name is required';
+    if (val.length > 255) return 'Max 255 characters';
     return null;
+  };
+
+  const handleBlur = () => {
+    const msg = validateName(name);
+    setNameError(msg || '');
+  };
+
+  const validate = () => {
+    const err = validateName(name);
+    return err;
   };
 
   const handleSubmit = (e) => {
@@ -76,6 +86,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             label="Country Name *"
             value={name}
             onChange={(e) => { setName(e.target.value); setNameError(''); }}
+            onBlur={handleBlur}
             error={nameError}
           />
         </Box>

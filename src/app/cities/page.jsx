@@ -87,16 +87,30 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     if (fieldErrors.state_id)   setFieldErrors((p) => ({ ...p, state_id: '' }));
   };
 
+  const validateField = (key, val) => {
+    switch (key) {
+      case 'country_id': return !val             ? 'Country is required'                  : '';
+      case 'state_id':   return !val             ? 'State is required'                    : '';
+      case 'name':       return !val.trim()      ? 'Name is required'
+                              : val.length > 255 ? 'Max 255 characters'                   : '';
+      case 'latitude':   return val && !/^-?\d+(\.\d+)?$/.test(val.trim()) ? 'Enter a valid latitude'  : '';
+      case 'longitude':  return val && !/^-?\d+(\.\d+)?$/.test(val.trim()) ? 'Enter a valid longitude' : '';
+      default:           return '';
+    }
+  };
+
+  const handleBlur = (key) => {
+    const val = form[key] ?? '';
+    const msg = validateField(key, val);
+    setFieldErrors((prev) => ({ ...prev, [key]: msg }));
+  };
+
   const validate = () => {
     const errors = {};
-    if (!form.country_id)            errors.country_id = 'Country is required';
-    if (!form.state_id)              errors.state_id   = 'State is required';
-    if (!form.name.trim())           errors.name       = 'Name is required';
-    else if (form.name.length > 255) errors.name       = 'Max 255 characters';
-    if (form.latitude  && !/^-?\d+(\.\d+)?$/.test(form.latitude.trim()))  errors.latitude  = 'Enter a valid latitude';
-    if (form.longitude && !/^-?\d+(\.\d+)?$/.test(form.longitude.trim())) errors.longitude = 'Enter a valid longitude';
-    if (form.latitude  && form.latitude.length  > 255) errors.latitude  = 'Max 255 characters';
-    if (form.longitude && form.longitude.length > 255) errors.longitude = 'Max 255 characters';
+    ['country_id', 'state_id', 'name', 'latitude', 'longitude'].forEach((key) => {
+      const msg = validateField(key, form[key] ?? '');
+      if (msg) errors[key] = msg;
+    });
     return errors;
   };
 
@@ -138,6 +152,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             label="Country *"
             value={form.country_id}
             onChange={handleCountryChange}
+            onBlur={() => handleBlur('country_id')}
             options={countries.map((c) => ({ label: c.name, value: c.id }))}
             error={fieldErrors.country_id}
             disabled={countriesLoading}
@@ -150,6 +165,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             label="State *"
             value={form.state_id}
             onChange={(e) => setField('state_id', e.target.value)}
+            onBlur={() => handleBlur('state_id')}
             options={states.map((s) => ({ label: s.name, value: s.id }))}
             error={fieldErrors.state_id}
             disabled={statesLoading || !form.country_id}
@@ -162,6 +178,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             label="City Name *"
             value={form.name}
             onChange={(e) => setField('name', e.target.value)}
+            onBlur={() => handleBlur('name')}
             error={fieldErrors.name}
           />
 
@@ -170,6 +187,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               label="Latitude" placeholder="e.g. 23.0225"
               value={form.latitude}
               onChange={(e) => setField('latitude', e.target.value)}
+              onBlur={() => handleBlur('latitude')}
               error={fieldErrors.latitude}
               slotProps={{ htmlInput: { inputMode: 'decimal' } }}
             />
@@ -177,6 +195,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               label="Longitude" placeholder="e.g. 72.5714"
               value={form.longitude}
               onChange={(e) => setField('longitude', e.target.value)}
+              onBlur={() => handleBlur('longitude')}
               error={fieldErrors.longitude}
               slotProps={{ htmlInput: { inputMode: 'decimal' } }}
             />
