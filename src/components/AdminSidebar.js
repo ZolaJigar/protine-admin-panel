@@ -78,7 +78,7 @@ export default function AdminSidebar({ open, width, miniWidth }) {
   };
 
   const content = (
-    <Box sx={{ width: open ? width : miniWidth, minHeight: '100vh', background: '#0F172A', display: 'flex', flexDirection: 'column', transition: 'width 0.3s ease', overflow: 'hidden' }}>
+    <Box sx={{ width: open ? width : miniWidth, minHeight: '100vh', background: '#0F172A', display: 'flex', flexDirection: 'column', transition: 'width 0.3s ease', overflow: 'hidden', height: '100vh' }}>
       {/* Brand */}
       <Box sx={{ px: open ? 2.5 : 1, py: 2.5, borderBottom: '2px solid #F59E0B', display: 'flex', alignItems: 'center', gap: 1.5, minHeight: 76 }}>
         <Box sx={{ width: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -98,7 +98,7 @@ export default function AdminSidebar({ open, width, miniWidth }) {
       </Box>
 
       {/* Nav */}
-      <List sx={{ flex: 1, py: 1.5 }}>
+      <List sx={{ flex: 1, py: 1.5, overflowY: 'auto', overflowX: 'hidden' }}>
         {navItems.map((item) => {
           const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
           return <NavItem key={item.href} item={item} open={open} active={active} />;
