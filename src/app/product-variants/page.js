@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import AdminShell from '@/components/AdminShell';
 import {
   Box, Paper, Typography, Button, TextField, InputAdornment,
@@ -14,7 +13,7 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Close, Search, Visibility,
-  ImageNotSupported, CloudUpload, OpenInNew,
+  ImageNotSupported, CloudUpload,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
@@ -23,6 +22,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
 const limit          = 10;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const MAX_FILE_SIZE  = 5 * 1024 * 1024;
+const WEIGHT_UNITS   = ['g', 'kg', 'ltr', 'ml'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(iso) {
@@ -30,26 +30,30 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function truncate(str, n = 60) {
-  if (!str) return '—';
-  return str.length > n ? str.slice(0, n) + '…' : str;
-}
-
-function nameToSlug(name) {
-  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+function formatPrice(val) {
+  if (val === null || val === undefined || val === '') return '—';
+  return '₹' + Number(val).toFixed(2);
 }
 
 function validateImageFile(file) {
-  if (!ACCEPTED_TYPES.includes(file.type)) return 'Only JPEG, PNG, GIF, or WebP allowed.';
+  if (!ACCEPTED_TYPES.includes(file.type)) return 'Only JPEG, PNG, GIF, or WebP images are allowed.';
   if (file.size > MAX_FILE_SIZE) return 'Image must be under 5 MB.';
   return null;
 }
 
+function buildSkuPreview(productName, variantName, weight, weightUnit) {
+  const parts = [];
+  if (productName) parts.push(productName.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, ''));
+  if (variantName)  parts.push(variantName.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, ''));
+  if (weight)       parts.push(String(weight) + (weightUnit || ''));
+  return parts.join('-') || null;
+}
+
 // ─── Skeleton rows ────────────────────────────────────────────────────────────
-function SkeletonRows({ count = 10 }) {
-  return Array.from({ length: count }).map((_, i) => (
+function SkeletonRows({ cols = 12 }) {
+  return Array.from({ length: limit }).map((_, i) => (
     <TableRow key={i}>
-      {Array.from({ length: 8 }).map((__, j) => (
+      {Array.from({ length: cols }).map((__, j) => (
         <TableCell key={j}><Skeleton variant="text" /></TableCell>
       ))}
     </TableRow>
@@ -57,24 +61,25 @@ function SkeletonRows({ count = 10 }) {
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
-function EmptyState({ search, filterCategory }) {
-  const msg = search ? `No products found for "${search}"`
-    : filterCategory ? 'No products in this category'
-    : 'No products yet';
+function EmptyState({ search, filterProduct, colSpan = 12 }) {
+  const msg = search
+    ? `No variants found for "${search}"`
+    : filterProduct ? 'No variants for this product'
+    : 'No variants yet';
   return (
     <TableRow>
-      <TableCell colSpan={8} sx={{ py: 8, textAlign: 'center' }}>
+      <TableCell colSpan={colSpan} sx={{ py: 8, textAlign: 'center' }}>
         <Typography variant="h6" sx={{ color: 'text.secondary', mb: 1 }}>{msg}</Typography>
         <Typography variant="body2" color="text.disabled">
-          {search || filterCategory ? 'Try different filters.' : 'Click "Add Product" to create your first one.'}
+          {search || filterProduct ? 'Try different filters.' : 'Click "Add Variant" to create your first one.'}
         </Typography>
       </TableCell>
     </TableRow>
   );
 }
 
-// ─── Product thumbnail ────────────────────────────────────────────────────────
-function ProductThumb({ src, name, size = 44 }) {
+// ─── Variant thumbnail ────────────────────────────────────────────────────────
+function VariantThumb({ src, name, size = 44 }) {
   const [err, setErr] = useState(false);
   if (!src || err) {
     return (
@@ -91,107 +96,83 @@ function ProductThumb({ src, name, size = 44 }) {
 }
 
 // ─── View Modal ───────────────────────────────────────────────────────────────
-function ViewModal({ open, itemData, onClose, onEdit }) {
-  const router = useRouter();
-  const ref    = useRef(itemData);
+function ViewModal({ open, itemData, onClose }) {
+  const ref = useRef(itemData);
   if (itemData) ref.current = itemData;
   const item = ref.current;
   if (!item) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        Product Details
+        Variant Details
         <IconButton onClick={onClose} size="small" aria-label="Close"><Close /></IconButton>
       </DialogTitle>
       <Divider />
       <DialogContent sx={{ pt: 3 }}>
-        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-          {/* Image */}
-          <Box sx={{ flexShrink: 0 }}>
-            <ProductThumb src={item.image} name={item.name} size={160} />
-          </Box>
-          {/* Details */}
-          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            {[
-              { label: 'Name',      value: <Typography sx={{ fontWeight: 700 }}>{item.name}</Typography> },
-              { label: 'Slug',      value: <Chip label={item.slug} size="small" variant="outlined" sx={{ fontFamily: 'monospace' }} /> },
-              { label: 'Category',  value: <Chip label={item.category?.name || '—'} size="small" sx={{ bgcolor: '#D8F3DC', color: '#1B4332' }} /> },
-              { label: 'Status',    value: item.is_active
-                  ? <Chip label="Active"   size="small" sx={{ bgcolor: '#D8F3DC', color: '#1B4332', fontWeight: 700 }} />
-                  : <Chip label="Inactive" size="small" sx={{ bgcolor: '#F5F5F5', color: '#57534E', fontWeight: 700 }} /> },
-              { label: 'Created',   value: <Typography variant="body2" color="text.secondary">{formatDate(item.createdAt)}</Typography> },
-            ].map(({ label, value }) => (
-              <Box key={label} sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <Typography component="div" sx={{ width: 100, fontWeight: 700, color: 'text.secondary', flexShrink: 0, fontSize: 14 }}>{label}</Typography>
-                <Box component="div" sx={{ flex: 1 }}>{value}</Box>
-              </Box>
-            ))}
-            {item.video && (
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <Typography component="div" sx={{ width: 100, fontWeight: 700, color: 'text.secondary', flexShrink: 0, fontSize: 14 }}>Video</Typography>
-                <Button size="small" endIcon={<OpenInNew />} href={item.video} target="_blank" rel="noreferrer"
-                  sx={{ color: '#0369A1', textTransform: 'none', p: 0 }}>
-                  Open Link
-                </Button>
-              </Box>
-            )}
-          </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {item.image && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+              <VariantThumb src={item.image} name={item.name} size={140} />
+            </Box>
+          )}
+          {[
+            { label: 'SKU',           value: item.sku ? <Chip label={item.sku} size="small" variant="outlined" sx={{ fontFamily: 'monospace' }} /> : '—' },
+            { label: 'Name',          value: item.name || '—' },
+            { label: 'Product',       value: item.product?.name || '—' },
+            { label: 'Category',      value: item.product?.category?.name || '—' },
+            { label: 'Weight',        value: item.weight ? `${item.weight} ${item.weight_unit || ''}`.trim() : '—' },
+            { label: 'MRP',           value: formatPrice(item.mrp) },
+            { label: 'Selling Price', value: formatPrice(item.selling_price) },
+            { label: 'Cost Price',    value: formatPrice(item.cost_price) },
+            { label: 'Stock Qty',     value: item.quantity ?? '—' },
+            { label: 'Barcode',       value: item.barcode || '—' },
+            { label: 'Status',        value: item.is_active
+                ? <Chip label="Active"   size="small" sx={{ bgcolor: '#D8F3DC', color: '#1B4332', fontWeight: 700 }} />
+                : <Chip label="Inactive" size="small" sx={{ bgcolor: '#F5F5F5', color: '#57534E', fontWeight: 700 }} /> },
+            { label: 'Created',       value: formatDate(item.createdAt) },
+          ].map(({ label, value }) => (
+            <Box key={label} sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <Typography component="div" sx={{ width: 120, fontWeight: 700, color: 'text.secondary', flexShrink: 0, fontSize: 14 }}>{label}</Typography>
+              <Typography component="div" sx={{ flex: 1 }}>{value}</Typography>
+            </Box>
+          ))}
         </Box>
-        {item.short_description && (
-          <Box sx={{ mt: 2.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: 'text.secondary' }}>Short Description</Typography>
-            <Typography variant="body2">{item.short_description}</Typography>
-          </Box>
-        )}
-        {item.long_description && (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: 'text.secondary' }}>Long Description</Typography>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{item.long_description}</Typography>
-          </Box>
-        )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button variant="outlined" startIcon={<ViewModule />}
-          onClick={() => { onClose(); router.push(`/products/${item.id}/variants`); }}>
-          Manage Variants
-        </Button>
+      <DialogActions sx={{ px: 3, pb: 3 }}>
         <Button variant="outlined" onClick={onClose}>Close</Button>
-        <Button variant="contained" onClick={() => { onClose(); onEdit(); }}
-          sx={{ background: 'linear-gradient(135deg, #1B4332, #2D6A4F)' }}>
-          Edit Product
-        </Button>
       </DialogActions>
     </Dialog>
   );
 }
 
 // ─── Form Modal (Create / Edit) ───────────────────────────────────────────────
-function FormModal({ open, itemId, itemData, onClose, onSaved }) {
+function FormModal({ open, itemId, itemData, onClose, onSaved, fixedProductId }) {
   const isEdit = !!itemId;
 
-  // state
   const [isLoading, setIsLoading]         = useState(false);
-  const [categories, setCategories]       = useState([]);
-  const [catsLoading, setCatsLoading]     = useState(false);
+  const [products, setProducts]           = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [form, setForm]                   = useState({
-    name: '', category_id: '', short_description: '',
-    long_description: '', video: '', is_active: true,
+    product_id: '', name: '', weight: '', weight_unit: '',
+    mrp: '', selling_price: '', cost_price: '', barcode: '',
+    quantity: '', is_active: true,
   });
   const [imageFile, setImageFile]         = useState(null);
   const [imagePreview, setImagePreview]   = useState('');
   const [fieldErrors, setFieldErrors]     = useState({});
   const [generalError, setGeneralError]   = useState('');
+  const [pricingWarning, setPricingWarning] = useState('');
   const fileInputRef                      = useRef();
 
-  // fetch categories on open
+  // fetch products on open
   useEffect(() => {
     if (open) {
-      setCatsLoading(true);
-      apiPost('/categories/list', { page: 1, limit: 100 })
-        .then((res) => setCategories(res?.data?.data ?? res?.data ?? []))
-        .catch(() => setCategories([]))
-        .finally(() => setCatsLoading(false));
+      setProductsLoading(true);
+      apiPost('/products/list', { page: 1, limit: 100 })
+        .then((res) => setProducts(res?.data?.data ?? []))
+        .catch(() => setProducts([]))
+        .finally(() => setProductsLoading(false));
     }
   }, [open]);
 
@@ -200,26 +181,47 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     if (open) {
       if (isEdit && itemData) {
         setForm({
-          name:              itemData.name              || '',
-          category_id:       itemData.category_id       || '',
-          short_description: itemData.short_description || '',
-          long_description:  itemData.long_description  || '',
-          video:             itemData.video             || '',
-          is_active:         itemData.is_active !== undefined ? itemData.is_active : true,
+          product_id:    fixedProductId ? String(fixedProductId) : String(itemData.product_id || itemData.product?.id || ''),
+          name:          itemData.name          || '',
+          weight:        itemData.weight        != null ? String(itemData.weight) : '',
+          weight_unit:   itemData.weight_unit   || '',
+          mrp:           itemData.mrp           != null ? String(itemData.mrp)   : '',
+          selling_price: itemData.selling_price != null ? String(itemData.selling_price) : '',
+          cost_price:    itemData.cost_price    != null ? String(itemData.cost_price)    : '',
+          barcode:       itemData.barcode       || '',
+          quantity:      itemData.quantity      != null ? String(itemData.quantity) : '',
+          is_active:     itemData.is_active !== undefined ? !!itemData.is_active : true,
         });
         setImagePreview(itemData.image || '');
       } else {
-        setForm({ name: '', category_id: '', short_description: '', long_description: '', video: '', is_active: true });
+        setForm({
+          product_id: fixedProductId ? String(fixedProductId) : '',
+          name: '', weight: '', weight_unit: '',
+          mrp: '', selling_price: '', cost_price: '',
+          barcode: '', quantity: '', is_active: true,
+        });
         setImagePreview('');
       }
       setImageFile(null);
       setFieldErrors({});
       setGeneralError('');
+      setPricingWarning('');
     }
-  }, [open, isEdit, itemData]);
+  }, [open, isEdit, itemData, fixedProductId]);
 
   const setField = (key, val) => {
-    setForm((p) => ({ ...p, [key]: val }));
+    setForm((p) => {
+      const next = { ...p, [key]: val };
+      // pricing warning
+      const sp  = parseFloat(key === 'selling_price' ? val : next.selling_price);
+      const mrp = parseFloat(key === 'mrp' ? val : next.mrp);
+      if (!isNaN(sp) && !isNaN(mrp) && sp > mrp) {
+        setPricingWarning('Selling price is greater than MRP.');
+      } else {
+        setPricingWarning('');
+      }
+      return next;
+    });
     if (fieldErrors[key]) setFieldErrors((p) => ({ ...p, [key]: '' }));
   };
 
@@ -230,6 +232,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     if (err) { toast.error(err); return; }
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
+    if (fieldErrors.image) setFieldErrors((p) => ({ ...p, image: '' }));
   };
 
   const removeImage = () => {
@@ -240,14 +243,18 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
 
   const validate = () => {
     const errors = {};
-    if (!form.category_id)             errors.category_id = 'Category is required';
-    if (!form.name.trim())             errors.name        = 'Name is required';
-    else if (form.name.length > 255)   errors.name        = 'Max 255 characters';
-    if (form.video && form.video.length > 255) errors.video = 'Max 255 characters';
+    if (!form.product_id)                               errors.product_id    = 'Product is required';
+    if (!form.name.trim())                              errors.name          = 'Name is required';
+    else if (form.name.length > 255)                    errors.name          = 'Max 255 characters';
+    if (form.mrp === '' || form.mrp === null)           errors.mrp           = 'MRP is required';
+    else if (isNaN(Number(form.mrp)) || Number(form.mrp) < 0) errors.mrp    = 'MRP must be 0 or more';
+    if (form.selling_price === '' || form.selling_price === null) errors.selling_price = 'Selling price is required';
+    else if (isNaN(Number(form.selling_price)) || Number(form.selling_price) < 0) errors.selling_price = 'Selling price must be 0 or more';
+    if (form.weight && !form.weight_unit)               errors.weight_unit   = 'Weight unit required when weight is set';
+    if (form.barcode && form.barcode.length > 100)      errors.barcode       = 'Max 100 characters';
     return errors;
   };
 
-  // api calls
   const handleSubmit = (e) => {
     e.preventDefault();
     setGeneralError('');
@@ -256,94 +263,130 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
 
     const fd = new FormData();
     if (isEdit) {
-      fd.append('category_id',       form.category_id);
-      fd.append('name',              form.name.trim());
-      fd.append('short_description', form.short_description ?? '');
-      fd.append('long_description',  form.long_description  ?? '');
-      fd.append('video',             form.video             ?? '');
-      fd.append('is_active',         form.is_active ? 1 : 0);
-      if (imageFile) fd.append('image', imageFile);
+      fd.append('product_id',    form.product_id);
+      fd.append('name',          form.name.trim());
+      fd.append('mrp',           form.mrp);
+      fd.append('selling_price', form.selling_price);
+      fd.append('is_active',     form.is_active ? 1 : 0);
+      if (form.weight)      fd.append('weight',      form.weight);
+      if (form.weight_unit) fd.append('weight_unit', form.weight_unit);
+      if (form.cost_price)  fd.append('cost_price',  form.cost_price);
+      if (form.barcode)     fd.append('barcode',      form.barcode.trim());
+      if (form.quantity)    fd.append('quantity',     form.quantity);
+      if (imageFile)        fd.append('image',        imageFile);
     } else {
-      fd.append('category_id', form.category_id);
-      fd.append('name',        form.name.trim());
-      if (form.short_description) fd.append('short_description', form.short_description);
-      if (form.long_description)  fd.append('long_description',  form.long_description);
-      if (form.video)             fd.append('video',             form.video);
-      if (imageFile)              fd.append('image',             imageFile);
+      fd.append('product_id',    form.product_id);
+      fd.append('name',          form.name.trim());
+      fd.append('mrp',           form.mrp);
+      fd.append('selling_price', form.selling_price);
+      if (form.weight)      fd.append('weight',      form.weight);
+      if (form.weight_unit) fd.append('weight_unit', form.weight_unit);
+      if (form.cost_price)  fd.append('cost_price',  form.cost_price);
+      if (form.barcode)     fd.append('barcode',      form.barcode.trim());
+      if (form.quantity)    fd.append('quantity',     form.quantity);
+      if (imageFile)        fd.append('image',        imageFile);
     }
 
     setIsLoading(true);
     const apiCall = isEdit
-      ? apiPut(`/products/update/${itemId}`, fd, {}, 'multipart/form-data')
-      : apiPost('/products/create', fd, {}, 'multipart/form-data');
+      ? apiPut(`/product-variants/update/${itemId}`, fd, {}, 'multipart/form-data')
+      : apiPost('/product-variants/create', fd, {}, 'multipart/form-data');
 
     apiCall
       .then(() => {
-        // response data is [] — always re-fetch
-        toast.success(isEdit ? 'Product updated successfully!' : 'Product created successfully!');
-        onSaved();  // triggers getData() in parent
+        toast.success(isEdit ? 'Variant updated successfully!' : 'Variant created successfully!');
+        onSaved();
         onClose();
       })
       .catch((err) => { setGeneralError(err); toast.error(err); })
       .finally(() => setIsLoading(false));
   };
 
+  // SKU preview
+  const selectedProduct = products.find((p) => String(p.id) === String(form.product_id));
+  const skuPreview = buildSkuPreview(selectedProduct?.name, form.name, form.weight, form.weight_unit);
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {isEdit ? 'Edit Product' : 'Add Product'}
+        {isEdit ? 'Edit Variant' : 'Add Variant'}
         <IconButton onClick={onClose} size="small" aria-label="Close"><Close /></IconButton>
       </DialogTitle>
       <Divider />
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <DialogContent sx={{ pt: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           {generalError && <Alert severity="error" sx={{ borderRadius: 2 }}>{generalError}</Alert>}
+          {pricingWarning && <Alert severity="warning" sx={{ borderRadius: 2 }}>{pricingWarning}</Alert>}
 
-          {/* Row 1: Category + Name */}
+          {/* Row 1: Product + Name */}
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <FormControl fullWidth error={!!fieldErrors.category_id} disabled={catsLoading}>
-              <InputLabel>Category *</InputLabel>
-              <Select value={form.category_id} label="Category *"
-                onChange={(e) => setField('category_id', e.target.value)}>
-                {categories.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+            <FormControl fullWidth error={!!fieldErrors.product_id} disabled={productsLoading || !!fixedProductId}>
+              <InputLabel>Product *</InputLabel>
+              <Select value={form.product_id} label="Product *"
+                onChange={(e) => setField('product_id', e.target.value)}>
+                {products.map((p) => <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>)}
               </Select>
-              {fieldErrors.category_id && (
-                <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>{fieldErrors.category_id}</Typography>
+              {fieldErrors.product_id && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>{fieldErrors.product_id}</Typography>
               )}
             </FormControl>
-            <TextField fullWidth label="Product Name *" value={form.name}
+            <TextField fullWidth label="Variant Name *" value={form.name}
               onChange={(e) => setField('name', e.target.value)}
               error={!!fieldErrors.name} helperText={fieldErrors.name} />
           </Box>
 
-          {/* Slug preview */}
-          {form.name && (
+          {/* SKU preview */}
+          {skuPreview && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: -1.5 }}>
-              <Typography variant="caption" color="text.secondary">Slug preview:</Typography>
-              <Chip label={nameToSlug(form.name)} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
+              <Typography variant="caption" color="text.secondary">SKU preview:</Typography>
+              <Chip label={skuPreview} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
+              <Typography variant="caption" color="text.disabled">(generated by server)</Typography>
             </Box>
           )}
 
-          {/* Short Description */}
-          <TextField fullWidth label="Short Description" multiline rows={2}
-            value={form.short_description}
-            onChange={(e) => setField('short_description', e.target.value)} />
+          {/* Row 2: Weight + Unit */}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField fullWidth label="Weight" type="number" value={form.weight}
+              onChange={(e) => setField('weight', e.target.value)}
+              error={!!fieldErrors.weight} helperText={fieldErrors.weight} />
+            <FormControl fullWidth error={!!fieldErrors.weight_unit}>
+              <InputLabel>Weight Unit</InputLabel>
+              <Select value={form.weight_unit} label="Weight Unit"
+                onChange={(e) => setField('weight_unit', e.target.value)}>
+                <MenuItem value=""><em>None</em></MenuItem>
+                {WEIGHT_UNITS.map((u) => <MenuItem key={u} value={u}>{u}</MenuItem>)}
+              </Select>
+              {fieldErrors.weight_unit && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>{fieldErrors.weight_unit}</Typography>
+              )}
+            </FormControl>
+          </Box>
 
-          {/* Long Description */}
-          <TextField fullWidth label="Long Description" multiline rows={5}
-            value={form.long_description}
-            onChange={(e) => setField('long_description', e.target.value)} />
+          {/* Row 3: MRP + Selling Price + Cost Price */}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField fullWidth label="MRP *" type="number" value={form.mrp}
+              onChange={(e) => setField('mrp', e.target.value)}
+              error={!!fieldErrors.mrp} helperText={fieldErrors.mrp} />
+            <TextField fullWidth label="Selling Price *" type="number" value={form.selling_price}
+              onChange={(e) => setField('selling_price', e.target.value)}
+              error={!!fieldErrors.selling_price} helperText={fieldErrors.selling_price} />
+            <TextField fullWidth label="Cost Price" type="number" value={form.cost_price}
+              onChange={(e) => setField('cost_price', e.target.value)} />
+          </Box>
 
-          {/* Video URL */}
-          <TextField fullWidth label="Video URL" placeholder="https://youtube.com/watch?v=..."
-            value={form.video}
-            onChange={(e) => setField('video', e.target.value)}
-            error={!!fieldErrors.video} helperText={fieldErrors.video} />
+          {/* Row 4: Barcode + Quantity */}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField fullWidth label="Barcode" value={form.barcode}
+              onChange={(e) => setField('barcode', e.target.value)}
+              error={!!fieldErrors.barcode} helperText={fieldErrors.barcode} />
+            <TextField fullWidth label="Stock Quantity" type="number" value={form.quantity}
+              onChange={(e) => setField('quantity', e.target.value)} />
+          </Box>
 
           {/* Image upload */}
           <Box>
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: 'text.secondary' }}>
-              Product Image (optional · JPEG/PNG/GIF/WebP · max 5 MB)
+              Image (optional · JPEG/PNG/GIF/WebP · max 5 MB)
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
               {imagePreview ? (
@@ -368,8 +411,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
                   {imagePreview ? 'Change Image' : 'Upload Image'}
                 </Button>
                 {imagePreview && (
-                  <Button variant="text" size="small" onClick={removeImage}
-                    sx={{ color: '#B91C1C', ml: 1 }}>Remove</Button>
+                  <Button variant="text" size="small" onClick={removeImage} sx={{ color: '#B91C1C', ml: 1 }}>Remove</Button>
                 )}
               </Box>
             </Box>
@@ -377,7 +419,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
               style={{ display: 'none' }} onChange={handleFileChange} />
           </Box>
 
-          {/* is_active toggle (edit only) */}
+          {/* is_active (edit only) */}
           {isEdit && (
             <FormControlLabel label="Active (visible on storefront)" control={
               <Switch checked={!!form.is_active}
@@ -392,7 +434,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
           <Button type="submit" variant="contained" disabled={isLoading}
             sx={{ background: 'linear-gradient(135deg, #1B4332, #2D6A4F)', minWidth: 130 }}>
             {isLoading ? <CircularProgress size={20} color="inherit" />
-              : isEdit ? 'Save Changes' : 'Add Product'}
+              : isEdit ? 'Save Changes' : 'Add Variant'}
           </Button>
         </DialogActions>
       </Box>
@@ -409,7 +451,7 @@ function DeleteModal({ open, itemId, itemName, onClose, onDeleted }) {
   const handleDelete = () => {
     if (!itemId) return;
     setIsLoading(true);
-    apiDelete(`/products/delete/${itemId}`)
+    apiDelete(`/product-variants/delete/${itemId}`)
       .then(() => {
         toast.success(`"${nameRef.current}" deleted.`);
         onDeleted();
@@ -421,15 +463,12 @@ function DeleteModal({ open, itemId, itemName, onClose, onDeleted }) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700 }}>Delete Product</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 700 }}>Delete Variant</DialogTitle>
       <Divider />
-      <DialogContent sx={{ pt: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <DialogContent sx={{ pt: 2.5 }}>
         <Typography>
-          Are you sure you want to delete <strong>{nameRef.current}</strong>?
+          Are you sure you want to delete variant <strong>{nameRef.current}</strong>? This action cannot be undone.
         </Typography>
-        <Alert severity="warning" sx={{ borderRadius: 2 }}>
-          This will also affect product variants linked to this product.
-        </Alert>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
         <Button variant="outlined" onClick={onClose} disabled={isLoading}>Cancel</Button>
@@ -443,10 +482,7 @@ function DeleteModal({ open, itemId, itemName, onClose, onDeleted }) {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function ProductsPage() {
-  const router = useRouter();
-
-  // state
+export default function ProductVariantsPage() {
   const [isSearch, setIsSearch]             = useState(false);
   const [isTableLoading, setIsTableLoading] = useState(false);
   const [itemId, setItemId]                 = useState(null);
@@ -459,16 +495,16 @@ export default function ProductsPage() {
   const [offset, setOffset]                 = useState(0);
   const [pageValue, setPageValue]           = useState(0);
   const [search, setSearch]                 = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
-  const [categories, setCategories]         = useState([]);
   const [tableData, setTableData]           = useState([]);
+  const [filterProduct, setFilterProduct]   = useState('');
+  const [products, setProducts]             = useState([]);
 
   // api calls
-  const getData = (searchVal = search, pageVal = pageValue, categoryVal = filterCategory) => {
+  const getData = (searchVal = search, pageVal = pageValue, productVal = filterProduct) => {
     setIsTableLoading(true);
     const body = { page: pageVal + 1, limit, search: searchVal.trim() };
-    if (categoryVal) body.category_id = Number(categoryVal);
-    apiPost('/products/list', body)
+    if (productVal) body.product_id = Number(productVal);
+    apiPost('/product-variants/list', body)
       .then((res) => {
         const { count: total, data } = res?.data ?? {};
         setTableData(data ?? []);
@@ -478,21 +514,21 @@ export default function ProductsPage() {
       .finally(() => setIsTableLoading(false));
   };
 
-  const getCategories = () => {
-    apiPost('/categories/list', { page: 1, limit: 100 })
-      .then((res) => setCategories(res?.data?.data ?? res?.data ?? []))
+  const getProducts = () => {
+    apiPost('/products/list', { page: 1, limit: 100 })
+      .then((res) => setProducts(res?.data?.data ?? []))
       .catch(() => {});
   };
 
   const getById = (id) => {
-    apiGet(`/products/${id}`)
+    apiGet(`/product-variants/${id}`)
       .then((res) => setItemData(res?.data ?? res))
       .catch(() => {});
   };
 
   // effects
   useEffect(() => {
-    getCategories();
+    getProducts();
     getData();
   }, []);
 
@@ -501,14 +537,14 @@ export default function ProductsPage() {
       const t = setTimeout(() => {
         setOffset(0);
         setPageValue(0);
-        getData(search, 0, filterCategory);
+        getData(search, 0, filterProduct);
       }, 400);
       return () => clearTimeout(t);
     }
   }, [search]);
 
-  const handleCategoryFilter = (val) => {
-    setFilterCategory(val);
+  const handleProductFilter = (val) => {
+    setFilterProduct(val);
     setOffset(0);
     setPageValue(0);
     getData(search, 0, val);
@@ -517,7 +553,7 @@ export default function ProductsPage() {
   const handleTableChange = (newPage) => {
     setOffset(newPage * limit);
     setPageValue(newPage);
-    getData(search, newPage, filterCategory);
+    getData(search, newPage, filterProduct);
   };
 
   const handleOpenView = (row) => {
@@ -550,25 +586,25 @@ export default function ProductsPage() {
       {/* ── Header ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 700, color: '#1B4332' }}>
-          Products
+          Product Variants
           {!isTableLoading && (
             <Chip label={count} size="small" sx={{ ml: 1.5, bgcolor: '#D8F3DC', color: '#1B4332', fontWeight: 700 }} />
           )}
         </Typography>
 
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Category filter */}
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel>Category</InputLabel>
-            <Select value={filterCategory} label="Category"
-              onChange={(e) => handleCategoryFilter(e.target.value)}>
-              <MenuItem value=""><em>All Categories</em></MenuItem>
-              {categories.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+          {/* Product filter */}
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel>Product</InputLabel>
+            <Select value={filterProduct} label="Product"
+              onChange={(e) => handleProductFilter(e.target.value)}>
+              <MenuItem value=""><em>All Products</em></MenuItem>
+              {products.map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
             </Select>
           </FormControl>
 
           {/* Search */}
-          <TextField size="small" placeholder="Search products…" value={search}
+          <TextField size="small" placeholder="Search variants…" value={search}
             onChange={(e) => { setSearch(e.target.value); setIsSearch(true); }}
             slotProps={{
               input: {
@@ -584,7 +620,7 @@ export default function ProductsPage() {
 
           <Button variant="contained" startIcon={<Add />} onClick={() => setOpenAdd(true)}
             sx={{ background: 'linear-gradient(135deg, #1B4332, #2D6A4F)', whiteSpace: 'nowrap' }}>
-            Add Product
+            Add Variant
           </Button>
         </Stack>
       </Box>
@@ -592,54 +628,55 @@ export default function ProductsPage() {
       {/* ── Table ── */}
       <Paper sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
         <Box sx={{ overflowX: 'auto' }}>
-          <Table sx={{ minWidth: 850 }}>
+          <Table sx={{ minWidth: 1100 }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ width: 50 }}>#</TableCell>
                 <TableCell sx={{ width: 60 }}>Image</TableCell>
+                <TableCell>SKU</TableCell>
                 <TableCell>Name</TableCell>
-                <TableCell>Category</TableCell>
-                <TableCell>Description</TableCell>
+                <TableCell>Product</TableCell>
+                <TableCell>Weight</TableCell>
+                <TableCell>MRP</TableCell>
+                <TableCell>Selling Price</TableCell>
+                <TableCell>Stock</TableCell>
                 <TableCell align="center">Status</TableCell>
                 <TableCell>Created</TableCell>
-                <TableCell align="center" sx={{ width: 150 }}>Actions</TableCell>
+                <TableCell align="center" sx={{ width: 130 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {isTableLoading ? (
-                <SkeletonRows count={limit} />
+                <SkeletonRows cols={12} />
               ) : tableData.length === 0 ? (
-                <EmptyState search={search} filterCategory={filterCategory} />
+                <EmptyState search={search} filterProduct={filterProduct} colSpan={12} />
               ) : (
                 tableData.map((row, idx) => (
                   <TableRow key={row.id} hover>
-                    <TableCell sx={{ color: 'text.disabled', fontSize: 13 }}>
-                      {offset + idx + 1}
-                    </TableCell>
+                    <TableCell sx={{ color: 'text.disabled', fontSize: 13 }}>{offset + idx + 1}</TableCell>
+                    <TableCell><VariantThumb src={row.image} name={row.name} size={44} /></TableCell>
                     <TableCell>
-                      <ProductThumb src={row.image} name={row.name} size={44} />
+                      {row.sku
+                        ? <Chip label={row.sku} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
+                        : <Typography variant="body2" color="text.disabled">—</Typography>}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 700, maxWidth: 180 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {row.name}
-                      </Typography>
-                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
                     <TableCell>
-                      <Chip label={row.category?.name || '—'} size="small"
-                        sx={{ bgcolor: '#D8F3DC', color: '#1B4332', fontWeight: 600 }} />
+                      <Chip label={row.product?.name || '—'} size="small"
+                        sx={{ bgcolor: '#EDE9FE', color: '#5B21B6', fontWeight: 600 }} />
                     </TableCell>
-                    <TableCell sx={{ color: 'text.secondary', fontSize: 13, maxWidth: 200 }}>
-                      {truncate(row.short_description)}
+                    <TableCell sx={{ fontSize: 13 }}>
+                      {row.weight ? `${row.weight} ${row.weight_unit || ''}`.trim() : '—'}
                     </TableCell>
+                    <TableCell sx={{ fontSize: 13 }}>{formatPrice(row.mrp)}</TableCell>
+                    <TableCell sx={{ fontSize: 13 }}>{formatPrice(row.selling_price)}</TableCell>
+                    <TableCell sx={{ fontSize: 13 }}>{row.quantity ?? '—'}</TableCell>
                     <TableCell align="center">
                       {row.is_active
                         ? <Chip label="Active"   size="small" sx={{ bgcolor: '#D8F3DC', color: '#1B4332', fontWeight: 700 }} />
-                        : <Chip label="Inactive" size="small" sx={{ bgcolor: '#F5F5F5', color: '#57534E', fontWeight: 700 }} />
-                      }
+                        : <Chip label="Inactive" size="small" sx={{ bgcolor: '#F5F5F5', color: '#57534E', fontWeight: 700 }} />}
                     </TableCell>
-                    <TableCell sx={{ fontSize: 13, color: 'text.secondary' }}>
-                      {formatDate(row.createdAt)}
-                    </TableCell>
+                    <TableCell sx={{ fontSize: 13, color: 'text.secondary' }}>{formatDate(row.createdAt)}</TableCell>
                     <TableCell align="center">
                       <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
                         <Tooltip title="View">
@@ -678,25 +715,38 @@ export default function ProductsPage() {
       </Paper>
 
       {/* ── Modals ── */}
-      <FormModal open={openAdd}  itemId={null}   itemData={null}
+      <FormModal
+        open={openAdd}
+        itemId={null}
+        itemData={null}
         onClose={handleCloseAdd}
-        onSaved={() => getData(search, pageValue, filterCategory)} />
+        onSaved={() => getData(search, pageValue, filterProduct)}
+      />
 
-      <FormModal open={openEdit} itemId={itemId} itemData={itemData}
+      <FormModal
+        open={openEdit}
+        itemId={itemId}
+        itemData={itemData}
         onClose={handleCloseEdit}
-        onSaved={() => getData(search, pageValue, filterCategory)} />
+        onSaved={() => getData(search, pageValue, filterProduct)}
+      />
 
       <ViewModal
-        open={openView} itemData={itemData} onClose={handleCloseView}
-        onEdit={() => handleOpenEdit(itemData)} />
+        open={openView}
+        itemData={itemData}
+        onClose={handleCloseView}
+      />
 
-      <DeleteModal open={openDelete} itemId={itemId} itemName={itemData?.name}
+      <DeleteModal
+        open={openDelete}
+        itemId={itemId}
+        itemName={itemData?.name}
         onClose={handleCloseDelete}
         onDeleted={() => {
           if (tableData.length === 1 && pageValue > 0) {
             handleTableChange(pageValue - 1);
           } else {
-            getData(search, pageValue, filterCategory);
+            getData(search, pageValue, filterProduct);
           }
         }}
       />

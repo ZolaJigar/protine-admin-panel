@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   Box, Drawer, List, ListItem, ListItemButton, ListItemIcon,
   ListItemText, Typography, Divider, Tooltip, Avatar,
@@ -9,17 +9,23 @@ import {
 import {
   Dashboard, Inventory, Category, ShoppingCart, People,
   Receipt, LocalShipping, Support, BarChart, Settings,
-  Logout, AdminPanelSettings,
+  Logout, Public, Map, LocationCity, AdminPanelSettings, Tune, ManageSearch,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { useAdmin } from '@/context/AdminContext';
 
 const navItems = [
   { label: 'Dashboard',  href: '/',           icon: <Dashboard /> },
-  { label: 'Products',   href: '/products',   icon: <Inventory /> },
-  { label: 'Categories', href: '/categories', icon: <Category /> },
+  { label: 'Products',   href: '/products',          icon: <Inventory /> },
+  { label: 'Product Variants', href: '/product-variants', icon: <Tune /> },
+  { label: 'Categories', href: '/categories',         icon: <Category /> },
   { label: 'Orders',     href: '/orders',     icon: <ShoppingCart /> },
   { label: 'Users',      href: '/users',      icon: <People /> },
+  { label: 'Login Logs', href: '/logs',        icon: <ManageSearch /> },
+  { label: 'Roles',      href: '/roles',      icon: <AdminPanelSettings /> },
+  { label: 'Countries',  href: '/countries',  icon: <Public /> },
+  { label: 'States',     href: '/states',     icon: <Map /> },
+  { label: 'Cities',     href: '/cities',     icon: <LocationCity /> },
   { label: 'Invoices',   href: '/invoices',   icon: <Receipt /> },
   { label: 'Delivery',   href: '/delivery',   icon: <LocalShipping /> },
   { label: 'Support',    href: '/support',    icon: <Support /> },
@@ -64,21 +70,24 @@ function NavItem({ item, open, active }) {
 
 export default function AdminSidebar({ open, width, miniWidth }) {
   const pathname = usePathname();
-  const router   = useRouter();
-  const { state, dispatch } = useAdmin();
+  const { state, logout } = useAdmin();
 
   const handleLogout = () => {
-    dispatch({ type: 'LOGOUT' });
-    toast.success('👋 Logged out');
-    router.push('/login');
+    logout();
+    toast.success('👋 Logged out successfully');
   };
 
   const content = (
     <Box sx={{ width: open ? width : miniWidth, minHeight: '100vh', background: '#0F172A', display: 'flex', flexDirection: 'column', transition: 'width 0.3s ease', overflow: 'hidden' }}>
       {/* Brand */}
       <Box sx={{ px: open ? 2.5 : 1, py: 2.5, borderBottom: '2px solid #F59E0B', display: 'flex', alignItems: 'center', gap: 1.5, minHeight: 76 }}>
-        <Box sx={{ width: 40, height: 40, flexShrink: 0, borderRadius: '50%', background: 'linear-gradient(135deg, #1B4332, #2D6A4F)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <AdminPanelSettings sx={{ fontSize: 22, color: '#F59E0B' }} />
+        <Box sx={{ width: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-icon-192.png"
+            alt="Protine Web"
+            style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 8 }}
+          />
         </Box>
         {open && (
           <Box>

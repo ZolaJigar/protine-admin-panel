@@ -1,28 +1,20 @@
+/* eslint-disable react/display-name */
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AdminShell from '@/components/AdminShell';
 import {
   Box, Paper, Typography, Button, TextField, InputAdornment,
-  Table, TableBody, TableCell, TableHead, TableRow, Chip,
+  Table, TableBody, TableCell, TableHead, TableRow, TablePagination,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-  MenuItem, Select, FormControl, InputLabel, Tooltip, Pagination,
-  Divider,
+  MenuItem, Select, FormControl, InputLabel, Tooltip,
+  Chip, Skeleton, CircularProgress, Divider,
 } from '@mui/material';
-import { Search, Visibility, Close, FilterList } from '@mui/icons-material';
+import { Search, Visibility, Close } from '@mui/icons-material';
 import { toast } from 'react-toastify';
+import { apiGet, apiPut } from '@/lib/api';
 
-const initialOrders = [
-  { id: '#ORD-1092', customer: 'Rahul Sharma',  email: 'rahul@example.com',  product: 'Classic Ketchup',     amount: 599,  status: 'Delivered',  date: '21 Jun 2026', address: '12 MG Road, Mumbai' },
-  { id: '#ORD-1091', customer: 'Priya Mehta',   email: 'priya@example.com',   product: 'Garlic Mayonnaise',   amount: 399,  status: 'Pending',    date: '21 Jun 2026', address: '45 Park Street, Delhi' },
-  { id: '#ORD-1090', customer: 'Amit Kumar',    email: 'amit@example.com',    product: 'Smoky BBQ Sauce',     amount: 299,  status: 'Shipped',    date: '20 Jun 2026', address: '8 Ring Road, Bangalore' },
-  { id: '#ORD-1089', customer: 'Sneha Patel',   email: 'sneha@example.com',   product: 'Honey Mustard',       amount: 449,  status: 'Processing', date: '20 Jun 2026', address: '22 Civil Lines, Ahmedabad' },
-  { id: '#ORD-1088', customer: 'Ravi Verma',    email: 'ravi@example.com',    product: 'Spicy Chilli Sauce',  amount: 249,  status: 'Cancelled',  date: '19 Jun 2026', address: '7 Sector 21, Chandigarh' },
-  { id: '#ORD-1087', customer: 'Divya Singh',   email: 'divya@example.com',   product: 'Schezwan Sauce',      amount: 279,  status: 'Delivered',  date: '19 Jun 2026', address: '3 Mall Road, Pune' },
-  { id: '#ORD-1086', customer: 'Kiran Joshi',   email: 'kiran@example.com',   product: 'Mint Chutney',        amount: 199,  status: 'Delivered',  date: '18 Jun 2026', address: '90 Anna Nagar, Chennai' },
-  { id: '#ORD-1085', customer: 'Arjun Nair',    email: 'arjun@example.com',   product: 'Italian Herb Dressing',amount: 379, status: 'Shipped',    date: '18 Jun 2026', address: '15 Koramangala, Bangalore' },
-];
-
+// ─── Constants ────────────────────────────────────────────────────────────────
 const ALL_STATUSES = ['Delivered', 'Pending', 'Shipped', 'Processing', 'Cancelled'];
 
 const statusColors = {
@@ -33,40 +25,174 @@ const statusColors = {
   Cancelled:  { bgcolor: '#FEE2E2', color: '#B91C1C' },
 };
 
-const PER_PAGE = 8;
+function formatDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
-export default function AdminOrdersPage() {
-  const [orders, setOrders]       = useState(initialOrders);
-  const [search, setSearch]       = useState('');
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [viewOrder, setViewOrder] = useState(null);
-  const [page, setPage]           = useState(1);
+// ─── Skeleton rows ────────────────────────────────────────────────────────────
+function SkeletonRows({ count = 10 }) {
+  return Array.from({ length: count }).map((_, i) => (
+    <TableRow key={i}>
+      {Array.from({ length: 7 }).map((__, j) => (
+        <TableCell key={j}><Skeleton variant="text" /></TableCell>
+      ))}
+    </TableRow>
+  ));
+}
 
-  const filtered = orders.filter((o) => {
-    const matchSearch = o.id.includes(search) || o.customer.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === 'All' || o.status === filterStatus;
-    return matchSearch && matchStatus;
-  });
+// ─── Empty state ──────────────────────────────────────────────────────────────
+function EmptyState({ search }) {
+  return (
+    <TableRow>
+      <TableCell colSpan={7} sx={{ py: 8, textAlign: 'center' }}>
+        <Typography variant="h6" sx={{ color: 'text.secondary', mb: 1 }}>
+          {search ? `No orders found for "${search}"` : 'No orders yet'}
+        </Typography>
+        <Typography variant="body2" color="text.disabled">
+          {search ? 'Try a different search term.' : 'Orders will appear here once placed.'}
+        </Typography>
+      </TableCell>
+    </TableRow>
+  );
+}
 
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+// ─── View Order Modal ─────────────────────────────────────────────────────────
+function ViewModal({ open, order, onClose, onStatusUpdated }) {
+  // stable ref so MUI close animation doesn't lose data
+  const ref = useRef(order);
+  if (order) ref.current = order;
+  const item = ref.current;
 
-  const handleStatusChange = (orderId, newStatus) => {
-    setOrders((prev) =>
+  // state — must be before any conditional return
+  const [isUpdating, setIsUpdating]       = useState(false);
+  const [currentStatus, setCurrentStatus] = useState('');
+
+  useEffect(() => {
+    if (open && item) setCurrentStatus(item.status);
+  }, [open, item]);
+
+  // api call
+  const handleStatusChange = (newStatus) => {
+    if (!item) return;
+    setIsUpdating(true);
+    apiPut(`/orders/${item.id}/status`, { status: newStatus })
+      .then(() => {
+        setCurrentStatus(newStatus);
+        toast.success(`Order status updated to ${newStatus}`);
+        onStatusUpdated(item.id, newStatus);
+      })
+      .catch((err) => {
+        toast.error(err);
+      })
+      .finally(() => setIsUpdating(false));
+  };
+
+  if (!item) return null;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        Order Details — {item.id}
+        <IconButton onClick={onClose} size="small" aria-label="Close dialog"><Close /></IconButton>
+      </DialogTitle>
+      <Divider />
+      <DialogContent sx={{ pt: 3 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {[
+            { label: 'Customer', value: item.customer?.name ?? item.customerName ?? '—' },
+            { label: 'Email',    value: item.customer?.email ?? item.email ?? '—' },
+            { label: 'Product',  value: item.product ?? item.items?.[0]?.name ?? '—' },
+            { label: 'Amount',   value: item.amount ? `₹${item.amount}` : '—' },
+            { label: 'Date',     value: formatDate(item.createdAt ?? item.date) },
+            { label: 'Address',  value: item.address ?? '—' },
+          ].map(({ label, value }) => (
+            <Box key={label} sx={{ display: 'flex', gap: 1 }}>
+              <Typography component="div" variant="body2" sx={{ fontWeight: 700, minWidth: 90, color: '#1B4332' }}>{label}:</Typography>
+              <Typography component="div" variant="body2">{value}</Typography>
+            </Box>
+          ))}
+          <Divider sx={{ my: 1 }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography component="div" variant="body2" sx={{ fontWeight: 700, color: '#1B4332', minWidth: 90 }}>Status:</Typography>
+            <FormControl size="small" sx={{ minWidth: 160 }} disabled={isUpdating}>
+              <Select value={currentStatus} onChange={(e) => handleStatusChange(e.target.value)}>
+                {ALL_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              </Select>
+            </FormControl>
+            {isUpdating && <CircularProgress size={18} />}
+          </Box>
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3 }}>
+        <Button variant="outlined" onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function OrdersPage() {
+  // state
+  const [isTableLoading, setIsTableLoading] = useState(false);
+  const [tableData, setTableData]           = useState([]);
+  const [count, setCount]                   = useState(0);
+  const [page, setPage]                     = useState(0);
+  const [limit, setLimit]                   = useState(10);
+  const [searchInput, setSearchInput]       = useState('');
+  const [search, setSearch]                 = useState('');
+  const [filterStatus, setFilterStatus]     = useState('');
+  const [viewTarget, setViewTarget]         = useState(null);
+  const debounceRef                         = useRef(null);
+
+  // api calls
+  const getData = (searchVal = search, pageVal = page, limitVal = limit, statusVal = filterStatus) => {
+    setIsTableLoading(true);
+    apiGet('/orders', {
+      page:   pageVal + 1,
+      limit:  limitVal,
+      search: searchVal.trim(),
+      status: statusVal || undefined,
+    })
+      .then((res) => {
+        const { count: total, data } = res.data ?? res;
+        setTableData(data ?? []);
+        setCount(total ?? 0);
+      })
+      .catch((err) => {
+        toast.error(err);
+      })
+      .finally(() => setIsTableLoading(false));
+  };
+
+  const handleStatusUpdated = (orderId, newStatus) => {
+    setTableData((prev) =>
       prev.map((o) => o.id === orderId ? { ...o, status: newStatus } : o)
     );
-    if (viewOrder?.id === orderId) setViewOrder((prev) => ({ ...prev, status: newStatus }));
-    toast.success(`Order ${orderId} status updated to ${newStatus}`);
+  };
+
+  // effects
+  useEffect(() => {
+    getData(search, page, limit, filterStatus);
+  }, [page, limit, search, filterStatus]);
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchInput(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearch(val);
+      setPage(0);
+    }, 400);
   };
 
   return (
     <AdminShell>
-      {/* Toolbar */}
+      {/* ── Toolbar ── */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
-          placeholder="Search by order ID or customer..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          size="small"
+          placeholder="Search by order ID or customer…" value={searchInput}
+          onChange={handleSearchChange} size="small"
           sx={{ flex: '1 1 220px', maxWidth: 340 }}
           slotProps={{
             input: {
@@ -82,56 +208,64 @@ export default function AdminOrdersPage() {
         <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>Status</InputLabel>
           <Select
-            value={filterStatus}
-            label="Status"
-            onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
+            value={filterStatus} label="Status"
+            onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
           >
-            <MenuItem value="All">All Statuses</MenuItem>
+            <MenuItem value="">All Statuses</MenuItem>
             {ALL_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
           </Select>
         </FormControl>
       </Box>
 
-      {/* Table */}
+      {/* ── Table ── */}
       <Paper sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
         <Box sx={{ overflowX: 'auto' }}>
-          <Table>
+          <Table sx={{ minWidth: 700 }}>
             <TableHead>
               <TableRow>
+                <TableCell sx={{ width: 50 }}>#</TableCell>
                 <TableCell>Order ID</TableCell>
                 <TableCell>Customer</TableCell>
                 <TableCell>Product</TableCell>
                 <TableCell>Amount</TableCell>
                 <TableCell>Date</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell align="center">Actions</TableCell>
+                <TableCell align="center" sx={{ width: 80 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {paginated.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                    No orders found.
-                  </TableCell>
-                </TableRow>
+              {isTableLoading ? (
+                <SkeletonRows count={limit} />
+              ) : tableData.length === 0 ? (
+                <EmptyState search={search} />
               ) : (
-                paginated.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell sx={{ fontWeight: 700, color: '#1B4332', fontSize: 13 }}>{order.id}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{order.customer}</TableCell>
-                    <TableCell sx={{ fontSize: 13 }}>{order.product}</TableCell>
+                tableData.map((order, idx) => (
+                  <TableRow key={order.id} hover>
+                    <TableCell sx={{ color: 'text.disabled', fontSize: 13 }}>
+                      {(page * limit) + idx + 1}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#1B4332', fontSize: 13 }}>
+                      {order.id}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>
+                      {order.customer?.name ?? order.customerName ?? '—'}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: 13 }}>
+                      {order.product ?? order.items?.[0]?.name ?? '—'}
+                    </TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>₹{order.amount}</TableCell>
-                    <TableCell sx={{ fontSize: 13, color: 'text.secondary' }}>{order.date}</TableCell>
+                    <TableCell sx={{ fontSize: 13, color: 'text.secondary' }}>
+                      {formatDate(order.createdAt ?? order.date)}
+                    </TableCell>
                     <TableCell>
                       <Chip
-                        label={order.status}
-                        size="small"
-                        sx={{ ...statusColors[order.status], fontWeight: 700, borderRadius: 1.5, fontSize: 11 }}
+                        label={order.status} size="small"
+                        sx={{ ...(statusColors[order.status] ?? {}), fontWeight: 700, borderRadius: 1.5, fontSize: 11 }}
                       />
                     </TableCell>
                     <TableCell align="center">
                       <Tooltip title="View Details">
-                        <IconButton size="small" onClick={() => setViewOrder(order)} sx={{ color: '#1B4332' }}>
+                        <IconButton size="small" onClick={() => setViewTarget(order)} sx={{ color: '#1B4332' }}>
                           <Visibility fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -142,62 +276,26 @@ export default function AdminOrdersPage() {
             </TableBody>
           </Table>
         </Box>
-        {filtered.length > PER_PAGE && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-            <Pagination
-              count={Math.ceil(filtered.length / PER_PAGE)}
-              page={page}
-              onChange={(_, v) => setPage(v)}
-              color="primary"
-            />
-          </Box>
-        )}
+
+        <TablePagination
+          component="div"
+          count={count}
+          page={page}
+          onPageChange={(_, newPage) => setPage(newPage)}
+          rowsPerPage={limit}
+          onRowsPerPageChange={(e) => { setLimit(parseInt(e.target.value, 10)); setPage(0); }}
+          rowsPerPageOptions={[10, 25, 50]}
+          sx={{ borderTop: '1px solid #E7E5E4' }}
+        />
       </Paper>
 
-      {/* View Order Dialog */}
-      <Dialog open={!!viewOrder} onClose={() => setViewOrder(null)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Order Details — {viewOrder?.id}
-          <IconButton onClick={() => setViewOrder(null)} size="small" aria-label="Close dialog">
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        {viewOrder && (
-          <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {[
-                { label: 'Customer',  value: viewOrder.customer },
-                { label: 'Email',     value: viewOrder.email },
-                { label: 'Product',   value: viewOrder.product },
-                { label: 'Amount',    value: `₹${viewOrder.amount}` },
-                { label: 'Date',      value: viewOrder.date },
-                { label: 'Address',   value: viewOrder.address },
-              ].map(({ label, value }) => (
-                <Box key={label} sx={{ display: 'flex', gap: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 90, color: '#1B4332' }}>{label}:</Typography>
-                  <Typography variant="body2">{value}</Typography>
-                </Box>
-              ))}
-              <Divider sx={{ my: 1 }} />
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: '#1B4332', minWidth: 90 }}>Status:</Typography>
-                <FormControl size="small" sx={{ minWidth: 160 }}>
-                  <Select
-                    value={viewOrder.status}
-                    onChange={(e) => handleStatusChange(viewOrder.id, e.target.value)}
-                  >
-                    {ALL_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Box>
-            </Box>
-          </DialogContent>
-        )}
-        <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button variant="outlined" onClick={() => setViewOrder(null)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      {/* ── Modal ── */}
+      <ViewModal
+        open={!!viewTarget}
+        order={viewTarget}
+        onClose={() => setViewTarget(null)}
+        onStatusUpdated={handleStatusUpdated}
+      />
     </AdminShell>
   );
 }
-

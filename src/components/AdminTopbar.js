@@ -4,41 +4,66 @@ import {
   AppBar, Toolbar, IconButton, Typography, Box, Badge,
   Avatar, Menu, MenuItem, Divider, Tooltip,
 } from '@mui/material';
-import { Menu as MenuIcon, Notifications, Settings, Logout } from '@mui/icons-material';
+import { Menu as MenuIcon, Notifications, Settings, Logout, NavigateNext } from '@mui/icons-material';
 import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
 import { useAdmin } from '@/context/AdminContext';
 
-const PAGE_TITLES = {
-  '/':           'Dashboard',
-  '/products':   'Products',
-  '/categories': 'Categories',
-  '/orders':     'Orders',
-  '/users':      'Users',
-  '/invoices':   'Invoices',
-  '/delivery':   'Delivery',
-  '/support':    'Support',
-  '/analytics':  'Analytics',
-  '/settings':   'Settings',
+// Map path segments to human-readable labels
+const SEGMENT_LABELS = {
+  '':           'Dashboard',
+  'products':   'Products',
+  'categories': 'Categories',
+  'orders':     'Orders',
+  'users':      'Users',
+  'logs':       'Login Logs',
+  'roles':      'Roles',
+  'countries':  'Countries',
+  'states':     'States',
+  'cities':            'Cities',
+  'product-variants':  'Product Variants',
+  'invoices':          'Invoices',
+  'delivery':   'Delivery',
+  'support':    'Support',
+  'analytics':  'Analytics',
+  'settings':   'Settings',
+  'add':        'Add',
+  'edit':       'Edit',
+  'view':       'View',
 };
+
+function buildBreadcrumbs(pathname) {
+  if (pathname === '/') return [{ label: 'Dashboard', href: '/' }];
+  const segments = pathname.split('/').filter(Boolean);
+  const crumbs = [];
+  let path = '';
+  segments.forEach((seg) => {
+    path += '/' + seg;
+    // skip dynamic [id] segments — use the previous segment's label + " Detail"
+    const isDynamic = /^\d+$/.test(seg) || (seg.startsWith('[') && seg.endsWith(']'));
+    if (!isDynamic) {
+      crumbs.push({
+        label: SEGMENT_LABELS[seg] ?? seg.charAt(0).toUpperCase() + seg.slice(1),
+        href: path,
+      });
+    }
+  });
+  return crumbs;
+}
 
 export default function AdminTopbar({ sidebarWidth }) {
   const pathname = usePathname();
-  const router   = useRouter();
-  const { state, dispatch } = useAdmin();
+  const { state, dispatch, logout } = useAdmin();
   const [anchorEl, setAnchorEl] = useState(null);
 
-  const pageTitle = Object.entries(PAGE_TITLES).find(([key]) =>
-    key === '/' ? pathname === '/' : pathname.startsWith(key)
-  )?.[1] || 'Admin Panel';
+  const crumbs = buildBreadcrumbs(pathname);
 
   const handleLogout = () => {
     setAnchorEl(null);
-    dispatch({ type: 'LOGOUT' });
-    toast.success('👋 Logged out');
-    router.push('/login');
+    logout();
+    toast.success('👋 Logged out successfully');
   };
 
   return (
@@ -56,12 +81,43 @@ export default function AdminTopbar({ sidebarWidth }) {
       }}
     >
       <Toolbar sx={{ gap: 1, minHeight: { xs: 64, md: 72 } }}>
+        {/* Sidebar toggle */}
         <IconButton onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })} sx={{ color: '#1B4332' }} aria-label="Toggle sidebar">
           <MenuIcon />
         </IconButton>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: '#1B4332', flex: 1 }}>
-          {pageTitle}
-        </Typography>
+
+        {/* Breadcrumbs */}
+        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, overflow: 'hidden' }}>
+          {crumbs.map((crumb, idx) => {
+            const isLast = idx === crumbs.length - 1;
+            return (
+              <Box key={crumb.href} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                {idx > 0 && (
+                  <NavigateNext sx={{ fontSize: 16, color: 'text.disabled', flexShrink: 0 }} />
+                )}
+                {isLast ? (
+                  <Typography
+                    variant="subtitle1"
+                    sx={{ fontWeight: 700, color: '#1B4332', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                  >
+                    {crumb.label}
+                  </Typography>
+                ) : (
+                  <Typography
+                    component={Link}
+                    href={crumb.href}
+                    variant="body2"
+                    sx={{ color: 'text.secondary', textDecoration: 'none', whiteSpace: 'nowrap', '&:hover': { color: '#1B4332', textDecoration: 'underline' } }}
+                  >
+                    {crumb.label}
+                  </Typography>
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+
+        {/* Notifications */}
         <Tooltip title="Notifications">
           <IconButton sx={{ color: '#1C1917' }} aria-label="Notifications">
             <Badge badgeContent={3} sx={{ '& .MuiBadge-badge': { bgcolor: '#F59E0B', color: '#0F172A', fontWeight: 700 } }}>
@@ -69,6 +125,8 @@ export default function AdminTopbar({ sidebarWidth }) {
             </Badge>
           </IconButton>
         </Tooltip>
+
+        {/* Avatar / account menu */}
         <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} size="small" aria-label="Admin account menu">
           <Avatar sx={{ width: 36, height: 36, bgcolor: '#1B4332', color: '#F59E0B', fontWeight: 800, fontSize: 15 }}>
             {state.admin?.name?.[0] || 'A'}
