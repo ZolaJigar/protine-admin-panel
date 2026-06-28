@@ -12,23 +12,15 @@ import { Add, Edit, Delete, ImageNotSupported, CloudUpload, Close } from '@mui/i
 import { toast } from 'react-toastify';
 import { themesAPI } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import { DEFAULT_LIMIT, ACCEPTED_THEME_IMAGE_TYPES, MAX_IMAGE_SIZE } from '@/constants/values';
+import { dateFormat12, validateImageFile } from '@/utils/functions';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_LIMIT  = 10;
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/x-icon', 'image/svg+xml'];
-const MAX_FILE_SIZE  = 5 * 1024 * 1024;
+// ─── Local aliases ────────────────────────────────────────────────────────────
+const ACCEPTED_TYPES = ACCEPTED_THEME_IMAGE_TYPES;
+const MAX_FILE_SIZE  = MAX_IMAGE_SIZE;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function validateImageFile(file) {
-  if (!ACCEPTED_TYPES.includes(file.type)) return 'Only image files are allowed (JPEG, PNG, GIF, WebP, SVG, ICO).';
-  if (file.size > MAX_FILE_SIZE) return 'Image must be under 5 MB.';
-  return null;
-}
+const formatDate = dateFormat12;
 
 // ─── Color swatch cell ────────────────────────────────────────────────────────
 function ColorSwatch({ value }) {

@@ -5,10 +5,7 @@ import { Visibility, DeleteSweep, PauseCircle } from '@mui/icons-material';
 import { Table } from '@/components/ui';
 import CartStatusBadge from './CartStatusBadge';
 import { formatAmount, formatDateTime } from '@/utils/cartUtils';
-
-function getInitials(name = '') {
-  return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-}
+import { getInitials } from '@/utils/functions';
 
 /**
  * CartTable — data table for the carts list page.

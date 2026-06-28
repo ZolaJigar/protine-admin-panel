@@ -17,29 +17,15 @@ import {
 import { toast } from 'react-toastify';
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import { DEFAULT_LIMIT, ACCEPTED_IMAGE_TYPES, MAX_IMAGE_SIZE, WEIGHT_UNITS } from '@/constants/values';
+import { dateFormat12, formatPrice, validateImageFile } from '@/utils/functions';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_LIMIT  = 10;
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const MAX_FILE_SIZE  = 5 * 1024 * 1024;
-const WEIGHT_UNITS   = ['g', 'kg', 'ltr', 'ml'];
+// ─── Local aliases ────────────────────────────────────────────────────────────
+const ACCEPTED_TYPES = ACCEPTED_IMAGE_TYPES;
+const MAX_FILE_SIZE  = MAX_IMAGE_SIZE;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function formatPrice(val) {
-  if (val === null || val === undefined || val === '') return '—';
-  return '₹' + Number(val).toFixed(2);
-}
-
-function validateImageFile(file) {
-  if (!ACCEPTED_TYPES.includes(file.type)) return 'Only JPEG, PNG, GIF, or WebP images are allowed.';
-  if (file.size > MAX_FILE_SIZE) return 'Image must be under 5 MB.';
-  return null;
-}
+const formatDate = dateFormat12;
 
 function buildSkuPreview(productName, variantName, weight, weightUnit) {
   const parts = [];

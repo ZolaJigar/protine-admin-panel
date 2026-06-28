@@ -15,40 +15,23 @@ import {
 import { toast } from 'react-toastify';
 import { bannersAPI } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import {
+  DEFAULT_LIMIT,
+  ACCEPTED_IMAGE_TYPES,
+  MAX_IMAGE_SIZE,
+  BANNER_PAGE_OPTIONS,
+  BANNER_PAGE_COLORS,
+} from '@/constants/values';
+import { dateFormat12, validateImageFile } from '@/utils/functions';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_LIMIT  = 10;
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const MAX_FILE_SIZE  = 5 * 1024 * 1024;
-
-const PAGE_OPTIONS = [
-  { label: 'All Pages',  value: '' },
-  { label: 'Home',       value: 'home' },
-  { label: 'Product',    value: 'product' },
-  { label: 'Category',   value: 'category' },
-  { label: 'About',      value: 'about' },
-  { label: 'Contact',    value: 'contact' },
-];
-
-const PAGE_COLORS = {
-  home:     { bg: '#D8F3DC', color: '#1B4332' },
-  product:  { bg: '#DBEAFE', color: '#1D4ED8' },
-  category: { bg: '#FEF3C7', color: '#92400E' },
-  about:    { bg: '#EDE9FE', color: '#7C3AED' },
-  contact:  { bg: '#F1F5F9', color: '#475569' },
-};
+// ─── Local aliases ────────────────────────────────────────────────────────────
+const ACCEPTED_TYPES = ACCEPTED_IMAGE_TYPES;
+const MAX_FILE_SIZE  = MAX_IMAGE_SIZE;
+const PAGE_OPTIONS   = BANNER_PAGE_OPTIONS;
+const PAGE_COLORS    = BANNER_PAGE_COLORS;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function validateImageFile(file) {
-  if (!ACCEPTED_TYPES.includes(file.type)) return 'Only JPEG, PNG, GIF, or WebP allowed.';
-  if (file.size > MAX_FILE_SIZE) return 'Image must be under 5 MB.';
-  return null;
-}
+const formatDate = dateFormat12;
 
 // ─── Banner thumbnail ─────────────────────────────────────────────────────────
 function BannerThumb({ src, size = 72 }) {

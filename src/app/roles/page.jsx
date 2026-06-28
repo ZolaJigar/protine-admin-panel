@@ -16,15 +16,11 @@ import {
 import { toast } from 'react-toastify';
 import { apiPost, apiDelete, apiPatch } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_LIMIT = 10;
+import { DEFAULT_LIMIT } from '@/constants/values';
+import { dateFormat12 } from '@/utils/functions';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+const formatDate = dateFormat12;
 
 // ─── Delete Modal ─────────────────────────────────────────────────────────────
 function DeleteModal({ open, itemId, itemName, onClose, onDeleted }) {

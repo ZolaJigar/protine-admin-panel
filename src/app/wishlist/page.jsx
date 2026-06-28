@@ -12,20 +12,12 @@ import { Delete, Search, ImageNotSupported } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { wishlistAPI } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_LIMIT = 10;
+import { DEFAULT_LIMIT } from '@/constants/values';
+import { dateFormat12, formatPriceIndian } from '@/utils/functions';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function formatPrice(v) {
-  if (v == null || v === '') return '—';
-  return '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-}
+const formatDate  = dateFormat12;
+const formatPrice = formatPriceIndian;
 
 // ─── Small product / variant image ───────────────────────────────────────────
 function Thumb({ src, size = 40 }) {

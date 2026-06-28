@@ -12,12 +12,10 @@ import {
 import { ArrowBack, Edit } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { apiGet, apiPost } from '@/lib/api';
+import { dateFormat12 } from '@/utils/functions';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+const formatDate = dateFormat12;
 
 function extractPermIds(rolePermissions = []) {
   return rolePermissions.map((rp) => Number(rp.permission_id));

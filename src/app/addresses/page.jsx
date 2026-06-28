@@ -12,40 +12,21 @@ import { Delete, Search, FilterAltOff } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { addressesAPI } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import {
+  DEFAULT_LIMIT,
+  ADDRESS_TYPE_OPTIONS,
+  ADDRESS_TYPE_COLORS,
+  ADDRESS_DEFAULT_OPTIONS,
+} from '@/constants/values';
+import { dateFormat12, getInitials } from '@/utils/functions';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_LIMIT = 10;
-
-const TYPE_OPTIONS = [
-  { label: 'All Types', value: '' },
-  { label: 'Home',      value: 'home' },
-  { label: 'Office',    value: 'office' },
-  { label: 'Resident',  value: 'resident' },
-  { label: 'Other',     value: 'other' },
-];
-
-const TYPE_COLORS = {
-  home:     { bg: '#D8F3DC', color: '#1B4332' },
-  office:   { bg: '#DBEAFE', color: '#1D4ED8' },
-  resident: { bg: '#FEF3C7', color: '#92400E' },
-  other:    { bg: '#F1F5F9', color: '#475569' },
-};
-
-const DEFAULT_OPTIONS = [
-  { label: 'All',     value: '' },
-  { label: 'Default', value: 'true' },
-  { label: 'Non-default', value: 'false' },
-];
+// ─── Local aliases ────────────────────────────────────────────────────────────
+const TYPE_OPTIONS    = ADDRESS_TYPE_OPTIONS;
+const TYPE_COLORS     = ADDRESS_TYPE_COLORS;
+const DEFAULT_OPTIONS = ADDRESS_DEFAULT_OPTIONS;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function getInitials(name = '') {
-  return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-}
+const formatDate = dateFormat12;
 
 // ─── Delete Modal ─────────────────────────────────────────────────────────────
 function DeleteModal({ open, itemId, onClose, onDeleted }) {

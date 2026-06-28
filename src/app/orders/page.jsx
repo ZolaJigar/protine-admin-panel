@@ -26,14 +26,8 @@ import OrderStatsBar from '@/components/orders/OrderStatsBar';
 import OrderStatusPipeline from '@/components/orders/OrderStatusPipeline';
 import UpdateStatusModal from '@/components/orders/UpdateStatusModal';
 import CancelOrderModal from '@/components/orders/CancelOrderModal';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_LIMIT = 10;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function getInitials(name = '') {
-  return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-}
+import { DEFAULT_LIMIT } from '@/constants/values';
+import { getInitials } from '@/utils/functions';
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function OrdersPage() {

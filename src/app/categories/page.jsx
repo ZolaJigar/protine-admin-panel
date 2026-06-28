@@ -16,28 +16,15 @@ import {
 import { toast } from 'react-toastify';
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import { DEFAULT_LIMIT, ACCEPTED_IMAGE_TYPES, MAX_IMAGE_SIZE } from '@/constants/values';
+import { dateFormat12, truncate, validateImageFile } from '@/utils/functions';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const MAX_FILE_SIZE  = 5 * 1024 * 1024;
-const DEFAULT_LIMIT = 10;
+// ─── Local aliases ────────────────────────────────────────────────────────────
+const ACCEPTED_TYPES = ACCEPTED_IMAGE_TYPES;
+const MAX_FILE_SIZE  = MAX_IMAGE_SIZE;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function validateImageFile(file) {
-  if (!ACCEPTED_TYPES.includes(file.type)) return 'Only JPEG, PNG, GIF, or WebP images are allowed.';
-  if (file.size > MAX_FILE_SIZE) return 'Image must be under 5 MB.';
-  return null;
-}
-
-function truncate(str, n = 60) {
-  if (!str) return '—';
-  return str.length > n ? str.slice(0, n) + '…' : str;
-}
-
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+const formatDate = dateFormat12;
 
 // ─── Image preview ────────────────────────────────────────────────────────────
 function CategoryImage({ src, size = 40 }) {

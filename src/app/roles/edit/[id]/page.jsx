@@ -14,11 +14,7 @@ import {
 import { ArrowBack, LockOutlined } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { apiGet, apiPost, apiPut } from '@/lib/api';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function nameToSlug(name) {
-  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-}
+import { nameToSlug } from '@/utils/functions';
 
 function extractPermIds(rolePermissions = []) {
   return rolePermissions.map((rp) => Number(rp.permission_id));

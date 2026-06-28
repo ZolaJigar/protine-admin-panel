@@ -14,11 +14,7 @@ import {
 import { ArrowBack } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { apiPost } from '@/lib/api';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function nameToSlug(name) {
-  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-}
+import { nameToSlug } from '@/utils/functions';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function AddRolePage() {

@@ -19,37 +19,24 @@ import {
 import { toast } from 'react-toastify';
 import { apiPost, apiPut, apiDelete } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import {
+  DEFAULT_LIMIT,
+  ACCEPTED_IMAGE_TYPES,
+  MAX_IMAGE_SIZE,
+  GENDER_OPTIONS,
+  ROLE_COLORS,
+} from '@/constants/values';
+import { dateFormat12, getInitials, validateImageFile } from '@/utils/functions';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_LIMIT  = 10;
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const MAX_FILE_SIZE  = 5 * 1024 * 1024;
-const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
-
-const ROLE_COLORS = {
-  super_admin: { bgcolor: '#FEE2E2', color: '#B91C1C' },
-  admin:       { bgcolor: '#E0F2FE', color: '#0369A1' },
-  default:     { bgcolor: '#D8F3DC', color: '#1B4332' },
-};
+// ─── Local aliases ────────────────────────────────────────────────────────────
+const ACCEPTED_TYPES = ACCEPTED_IMAGE_TYPES;
+const MAX_FILE_SIZE  = MAX_IMAGE_SIZE;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function validateImageFile(file) {
-  if (!ACCEPTED_TYPES.includes(file.type)) return 'Only JPEG, PNG, GIF, or WebP allowed.';
-  if (file.size > MAX_FILE_SIZE) return 'Image must be under 5 MB.';
-  return null;
-}
+const formatDate = dateFormat12;
 
 function getRoleColors(slug) {
   return ROLE_COLORS[slug] ?? ROLE_COLORS.default;
-}
-
-function getInitials(name = '') {
-  return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || '?';
 }
 
 // ─── User Avatar ──────────────────────────────────────────────────────────────
