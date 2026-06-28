@@ -2,19 +2,23 @@
  * auth.js — Pure async helpers for login, logout, forgot/reset password,
  * and token refresh. Used by AdminContext and individual auth pages.
  */
-import { authAPI } from './api';
+import { authAPI, permissionsAPI } from './api';
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 const TOKEN_KEY         = 'adminToken';
 const REFRESH_TOKEN_KEY = 'adminRefreshToken';
 const USER_KEY          = 'adminUser';
+const PERMISSIONS_KEY   = 'adminPermissions';
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
-export function saveAuthData({ token, refreshToken, user }) {
+export function saveAuthData({ token, refreshToken, user, permissions }) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  if (permissions !== undefined) {
+    localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(permissions));
+  }
 }
 
 export function clearAuthData() {
@@ -22,6 +26,7 @@ export function clearAuthData() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(PERMISSIONS_KEY);
 }
 
 export function getStoredToken() {
@@ -44,18 +49,73 @@ export function getStoredUser() {
   }
 }
 
+export function getStoredPermissions() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(PERMISSIONS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Auth actions ─────────────────────────────────────────────────────────────
 
 /**
- * Login with email + password.
- * apiPost resolves with response.data, so shape expected: { data: { user, token, refreshToken } }
+ * Login with email + password, or phone + password.
  * Returns { user, token, refreshToken } on success; throws string error message on failure.
  */
-export async function loginRequest(email, password) {
-  const res = await authAPI.login({ email, password });
+export async function loginRequest(identifier, password, isPhone = false) {
+  const payload = isPhone
+    ? { phone: identifier, password }
+    : { email: identifier, password };
+  const res = await authAPI.login(payload);
   const { user, token, refreshToken } = res.data;
   saveAuthData({ token, refreshToken, user });
   return { user, token, refreshToken };
+}
+
+/**
+ * Send OTP — accepts either { phone } or { email } depending on which the user provides.
+ * Returns the success message string.
+ */
+export async function sendLoginOtpRequest(identifier, isEmail = false) {
+  const payload = isEmail ? { email: identifier } : { phone: identifier };
+  const res = await authAPI.sendLoginOtp(payload);
+  return res.message;
+}
+
+/**
+ * Verify OTP and log in — accepts either phone or email as identifier.
+ * otp must be a number (integer).
+ * Returns { user, token, refreshToken } on success.
+ */
+export async function verifyLoginOtpRequest(identifier, otp, isEmail = false) {
+  const payload = isEmail
+    ? { email: identifier, otp: Number(otp) }
+    : { phone: identifier, otp: Number(otp) };
+  const res = await authAPI.verifyLoginOtp(payload);
+  const { user, token, refreshToken } = res.data;
+  saveAuthData({ token, refreshToken, user });
+  return { user, token, refreshToken };
+}
+
+/**
+ * Fetch the current admin's permissions from /permissions/detail.
+ * Stores the result in localStorage and returns the permissions data.
+ * Must be called after the token is already saved (so the request is authenticated).
+ */
+export async function fetchAndStorePermissions(role_id) {
+  try {
+    const res = await permissionsAPI.detail(role_id);
+    // API may return { data: ... } or the permissions object directly
+    const permissions = res?.data ?? res;
+    localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(permissions));
+    return permissions;
+  } catch {
+    // Non-fatal — permissions will be empty; user will have restricted access
+    return null;
+  }
 }
 
 /**

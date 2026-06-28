@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Close, Search, Visibility,
-  ImageNotSupported, CloudUpload, OpenInNew, ViewModule,
+  ImageNotSupported, OpenInNew, ViewModule, AddPhotoAlternate,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
@@ -70,6 +70,12 @@ function ViewModal({ open, itemData, onClose, onEdit }) {
   const item = ref.current;
   if (!item) return null;
 
+  // Combine primary image + images array for gallery display
+  const allImages = [
+    ...(item.image ? [item.image] : []),
+    ...(Array.isArray(item.images) ? item.images.map((img) => (typeof img === 'string' ? img : img.url ?? img.path ?? '')) : []),
+  ].filter(Boolean);
+
   return (
     <Modal open={open} onClose={onClose} title="Product Details" maxWidth="md"
       actions={<>
@@ -85,8 +91,24 @@ function ViewModal({ open, itemData, onClose, onEdit }) {
       </>}
     >
         <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          {/* Image gallery */}
           <Box sx={{ flexShrink: 0 }}>
-            <ProductThumb src={item.image} name={item.name} size={160} />
+            {allImages.length > 0 ? (
+              <Box>
+                {/* Primary / large image */}
+                <ProductThumb src={allImages[0]} name={item.name} size={160} />
+                {/* Thumbnails row */}
+                {allImages.length > 1 && (
+                  <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap', maxWidth: 160 }}>
+                    {allImages.slice(1).map((src, i) => (
+                      <ProductThumb key={i} src={src} name={`${item.name} ${i + 2}`} size={48} />
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            ) : (
+              <ProductThumb src={null} name={item.name} size={160} />
+            )}
           </Box>
           <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             {[
@@ -96,6 +118,7 @@ function ViewModal({ open, itemData, onClose, onEdit }) {
               { label: 'Status',   value: item.is_active
                   ? <Chip label="Active"   size="small" sx={{ bgcolor: '#D8F3DC', color: '#1B4332', fontWeight: 700 }} />
                   : <Chip label="Inactive" size="small" sx={{ bgcolor: '#F5F5F5', color: '#57534E', fontWeight: 700 }} /> },
+              { label: 'Images',   value: <Typography variant="body2" color="text.secondary">{allImages.length} image{allImages.length !== 1 ? 's' : ''}</Typography> },
               { label: 'Created',  value: <Typography variant="body2" color="text.secondary">{formatDate(item.createdAt)}</Typography> },
             ].map(({ label, value }) => (
               <Box key={label} sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -141,8 +164,9 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     name: '', category_id: '', short_description: '',
     long_description: '', video: '', is_active: true,
   });
-  const [imageFile, setImageFile]       = useState(null);
-  const [imagePreview, setImagePreview] = useState('');
+  // Multiple extra images
+  const [imageFiles, setImageFiles]     = useState([]);   // File[]
+  const [imagePreviews, setImagePreviews] = useState([]); // { url, isExisting }[]
   const [fieldErrors, setFieldErrors]   = useState({});
   const [generalError, setGeneralError] = useState('');
   const fileInputRef                    = useRef();
@@ -150,7 +174,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
   useEffect(() => {
     if (open) {
       setCatsLoading(true);
-      apiPost('/categories/list', { page: 1, limit: 100 })
+      apiPost('/admin/categories/list', { page: 1, limit: 100 })
         .then((res) => setCategories(res?.data?.data ?? res?.data ?? []))
         .catch(() => setCategories([]))
         .finally(() => setCatsLoading(false));
@@ -168,12 +192,19 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
           video:             itemData.video             || '',
           is_active:         itemData.is_active !== undefined ? itemData.is_active : true,
         });
-        setImagePreview(itemData.image || '');
+        // Pre-populate existing images from API
+        const existing = [
+          ...(itemData.image ? [itemData.image] : []),
+          ...(Array.isArray(itemData.images)
+            ? itemData.images.map((img) => (typeof img === 'string' ? img : img.url ?? img.path ?? ''))
+            : []),
+        ].filter(Boolean);
+        setImagePreviews(existing.map((url) => ({ url, isExisting: true })));
       } else {
         setForm({ name: '', category_id: '', short_description: '', long_description: '', video: '', is_active: true });
-        setImagePreview('');
+        setImagePreviews([]);
       }
-      setImageFile(null);
+      setImageFiles([]);
       setFieldErrors({});
       setGeneralError('');
     }
@@ -185,18 +216,32 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const err = validateImageFile(file);
-    if (err) { toast.error(err); return; }
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const valid = [];
+    for (const file of files) {
+      const err = validateImageFile(file);
+      if (err) { toast.error(`${file.name}: ${err}`); continue; }
+      valid.push(file);
+    }
+    if (!valid.length) return;
+    setImageFiles((prev) => [...prev, ...valid]);
+    setImagePreviews((prev) => [
+      ...prev,
+      ...valid.map((f) => ({ url: URL.createObjectURL(f), isExisting: false })),
+    ]);
+    // Reset input so same file can be re-picked
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  const removeImage = (idx) => {
+    const preview = imagePreviews[idx];
+    if (!preview.isExisting) {
+      // Count how many new-file previews come before this index
+      const newIdx = imagePreviews.slice(0, idx).filter((p) => !p.isExisting).length;
+      setImageFiles((prev) => prev.filter((_, i) => i !== newIdx));
+    }
+    setImagePreviews((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const validateField = (key, val) => {
@@ -238,20 +283,20 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
       fd.append('long_description',  form.long_description  ?? '');
       fd.append('video',             form.video             ?? '');
       fd.append('is_active',         form.is_active ? 1 : 0);
-      if (imageFile) fd.append('image', imageFile);
     } else {
       fd.append('category_id', form.category_id);
       fd.append('name',        form.name.trim());
       if (form.short_description) fd.append('short_description', form.short_description);
       if (form.long_description)  fd.append('long_description',  form.long_description);
       if (form.video)             fd.append('video',             form.video);
-      if (imageFile)              fd.append('image',             imageFile);
     }
+    // Append all new image files
+    imageFiles.forEach((f) => fd.append('images', f));
 
     setIsLoading(true);
     const apiCall = isEdit
-      ? apiPut(`/products/update/${itemId}`, fd, {}, 'multipart/form-data')
-      : apiPost('/products/create', fd, {}, 'multipart/form-data');
+      ? apiPut(`/admin/products/update/${itemId}`, fd, {}, 'multipart/form-data')
+      : apiPost('/admin/products/create', fd, {}, 'multipart/form-data');
 
     apiCall
       .then(() => {
@@ -326,41 +371,107 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             error={fieldErrors.video}
           />
 
-          {/* Image upload */}
+          {/* Multiple image upload */}
           <Box>
-            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: 'text.secondary' }}>
-              Product Image (optional · JPEG/PNG/GIF/WebP · max 5 MB)
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-              {imagePreview ? (
-                <Box sx={{ position: 'relative', flexShrink: 0 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imagePreview} alt="preview"
-                    style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, display: 'block', border: '2px solid #E7E5E4' }} />
-                  <IconButton size="small" onClick={removeImage} aria-label="Remove image"
-                    sx={{ position: 'absolute', top: -8, right: -8, width: 22, height: 22, bgcolor: '#B91C1C', color: '#fff', '&:hover': { bgcolor: '#7F1D1D' } }}>
-                    <Close sx={{ fontSize: 12 }} />
-                  </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                Product Images (optional · JPEG/PNG/GIF/WebP · max 5 MB each)
+              </Typography>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<AddPhotoAlternate />}
+                onClick={() => fileInputRef.current?.click()}
+                sx={{ borderColor: '#1B4332', color: '#1B4332' }}
+              >
+                Add Images
+              </Button>
+            </Box>
+
+            {/* Image grid */}
+            {imagePreviews.length > 0 ? (
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                {imagePreviews.map((preview, idx) => (
+                  <Box key={idx} sx={{ position: 'relative', flexShrink: 0 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={preview.url}
+                      alt={`product-${idx + 1}`}
+                      style={{
+                        width: 90, height: 90, objectFit: 'cover',
+                        borderRadius: 10, display: 'block',
+                        border: idx === 0 ? '2px solid #1B4332' : '2px solid #E7E5E4',
+                      }}
+                    />
+                    {idx === 0 && (
+                      <Box sx={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        bgcolor: 'rgba(27,67,50,0.75)', borderBottomLeftRadius: 8, borderBottomRightRadius: 8,
+                        py: 0.25, textAlign: 'center',
+                      }}>
+                        <Typography sx={{ color: '#fff', fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>PRIMARY</Typography>
+                      </Box>
+                    )}
+                    <IconButton
+                      size="small"
+                      onClick={() => removeImage(idx)}
+                      aria-label="Remove image"
+                      sx={{
+                        position: 'absolute', top: -7, right: -7,
+                        width: 20, height: 20, bgcolor: '#B91C1C', color: '#fff',
+                        '&:hover': { bgcolor: '#7F1D1D' },
+                      }}
+                    >
+                      <Close sx={{ fontSize: 11 }} />
+                    </IconButton>
+                  </Box>
+                ))}
+
+                {/* Add more tile */}
+                <Box
+                  onClick={() => fileInputRef.current?.click()}
+                  sx={{
+                    width: 90, height: 90, borderRadius: '10px',
+                    border: '2px dashed #D1D5DB', bgcolor: '#F9FAFB',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', color: '#9CA3AF',
+                    '&:hover': { bgcolor: '#F1F5F0', borderColor: '#1B4332', color: '#1B4332' },
+                  }}
+                >
+                  <AddPhotoAlternate sx={{ fontSize: 22, mb: 0.25 }} />
+                  <Typography sx={{ fontSize: 10, fontWeight: 600 }}>Add</Typography>
                 </Box>
-              ) : (
-                <Avatar variant="rounded" sx={{ width: 80, height: 80, bgcolor: '#F1F5F0', border: '2px dashed #D1D5DB', color: '#A8A29E' }}>
+              </Box>
+            ) : (
+              /* Empty state — click to upload */
+              <Box
+                onClick={() => fileInputRef.current?.click()}
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 2,
+                  p: 2, borderRadius: 2, border: '2px dashed #D1D5DB',
+                  bgcolor: '#F9FAFB', cursor: 'pointer',
+                  '&:hover': { bgcolor: '#F1F5F0', borderColor: '#1B4332' },
+                }}
+              >
+                <Avatar variant="rounded" sx={{ width: 56, height: 56, bgcolor: '#F1F5F0', color: '#A8A29E' }}>
                   <ImageNotSupported />
                 </Avatar>
-              )}
-              <Box>
-                <Button variant="outlined" size="small" startIcon={<CloudUpload />}
-                  onClick={() => fileInputRef.current?.click()}
-                  sx={{ borderColor: '#1B4332', color: '#1B4332', mb: 0.5 }}>
-                  {imagePreview ? 'Change Image' : 'Upload Image'}
-                </Button>
-                {imagePreview && (
-                  <Button variant="text" size="small" onClick={removeImage}
-                    sx={{ color: '#B91C1C', ml: 1 }}>Remove</Button>
-                )}
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#374151' }}>Click to upload images</Typography>
+                  <Typography variant="caption" color="text.disabled">JPEG, PNG, GIF, WebP · up to 5 MB each · multiple allowed</Typography>
+                </Box>
               </Box>
-            </Box>
-            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp"
-              style={{ display: 'none' }} onChange={handleFileChange} />
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
           </Box>
 
           {/* is_active toggle (edit only) */}
@@ -395,7 +506,7 @@ function DeleteModal({ open, itemId, itemName, onClose, onDeleted }) {
   const handleDelete = () => {
     if (!itemId) return;
     setIsLoading(true);
-    apiDelete(`/products/delete/${itemId}`)
+    apiDelete(`/admin/products/delete/${itemId}`)
       .then(() => {
         toast.success(`"${nameRef.current}" deleted.`);
         onDeleted();
@@ -448,7 +559,7 @@ export default function ProductsPage() {
     setIsTableLoading(true);
     const body = { page: pageVal + 1, limit: limitVal, search: searchVal.trim() };
     if (categoryVal) body.category_id = String(categoryVal);
-    apiPost('/products/list', body)
+    apiPost('/admin/products/list', body)
       .then((res) => {
         const { count: total, data } = res?.data ?? {};
         setTableData(data ?? []);
@@ -459,13 +570,13 @@ export default function ProductsPage() {
   };
 
   const getCategories = () => {
-    apiPost('/categories/list', { page: 1, limit: 100 })
+    apiPost('/admin/categories/list', { page: 1, limit: 100 })
       .then((res) => setCategories(res?.data?.data ?? res?.data ?? []))
       .catch(() => {});
   };
 
   const getById = (id) => {
-    apiGet(`/products/${id}`)
+    apiGet(`/admin/products/${id}`)
       .then((res) => setItemData(res?.data ?? res))
       .catch(() => {});
   };
@@ -540,10 +651,6 @@ export default function ProductsPage() {
           {offset + idx + 1}
         </Typography>
       ),
-    },
-    {
-      key: 'image', label: 'Image', width: 60,
-      render: (row) => <ProductThumb src={row.image} name={row.name} size={44} />,
     },
     {
       key: 'name', label: 'Name',

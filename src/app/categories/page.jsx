@@ -181,12 +181,12 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
 
     setIsLoading(true);
     if (isEdit) {
-      apiPut(`/categories/update/${itemId}`, fd, {}, 'multipart/form-data')
+      apiPut(`/admin/categories/update/${itemId}`, fd, {}, 'multipart/form-data')
         .then(() => { toast.success('Category updated successfully!'); onSaved(); onClose(); })
         .catch((err) => { setGeneralError(err); toast.error(err); })
         .finally(() => setIsLoading(false));
     } else {
-      apiPost('/categories/create', fd, {}, 'multipart/form-data')
+      apiPost('/admin/categories/create', fd, {}, 'multipart/form-data')
         .then(() => { toast.success('Category created successfully!'); onSaved(); onClose(); })
         .catch((err) => { setGeneralError(err); toast.error(err); })
         .finally(() => setIsLoading(false));
@@ -280,7 +280,7 @@ function DeleteModal({ open, itemId, itemName, onClose, onDeleted }) {
   const handleDelete = () => {
     if (!itemId) return;
     setIsLoading(true);
-    apiDelete(`/categories/delete/${itemId}`)
+    apiDelete(`/admin/categories/delete/${itemId}`)
       .then(() => { toast.success(`"${nameRef.current}" deleted.`); onDeleted(); onClose(); })
       .catch((err) => toast.error(err))
       .finally(() => setIsLoading(false));
@@ -321,7 +321,7 @@ export default function CategoriesPage() {
 
   const getData = (searchVal = search, offsetVal = offset, pageVal = pageValue, limitVal = limit) => {
     setIsTableLoading(true);
-    apiPost('/categories/list', { page: pageVal + 1, limit: limitVal, search: searchVal.trim() })
+    apiPost('/admin/categories/list', { page: pageVal + 1, limit: limitVal, search: searchVal.trim() })
       .then((res) => {
         const { count: total, data } = res.data;
         setTableData(data);
@@ -333,7 +333,7 @@ export default function CategoriesPage() {
 
   const getById = (id) => {
     setIsLoading(true);
-    apiGet(`/categories/${id}`)
+    apiGet(`/admin/categories/${id}`)
       .then((res) => setItemData(res.data ?? res))
       .catch(() => {})
       .finally(() => setIsLoading(false));

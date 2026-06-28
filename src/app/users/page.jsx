@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminShell from '@/components/AdminShell';
 import { TextInput, Select, Table, Modal } from '@/components/ui';
+import PhoneInput from '@/components/PhoneInput';
 import {
   Box, Typography, Button, InputAdornment,
   IconButton,
@@ -77,7 +78,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
   const [isLoading, setIsLoading]           = useState(false);
   const [roles, setRoles]                   = useState([]);
   const [rolesLoading, setRolesLoading]     = useState(false);
-  const [form, setForm]                     = useState({ name: '', email: '', password: '', role_id: '', gender: '', phone: '' });
+  const [form, setForm]                     = useState({ name: '', email: '', password: '', role_id: '', gender: '', phone: '', country_code: '91', dob: '' });
   const [imageFile, setImageFile]           = useState(null);
   const [imagePreview, setImagePreview]     = useState('');
   const [changePassword, setChangePassword] = useState(false);
@@ -106,10 +107,12 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
           role_id:  itemData.role_id || '',
           gender:   itemData.gender  || '',
           phone:    itemData.phone   || '',
+          country_code: itemData.country_code || '91',
+          dob:      itemData.dob ? itemData.dob.slice(0, 10) : '',
         });
         setImagePreview(itemData.image || '');
       } else {
-        setForm({ name: '', email: '', password: '', role_id: '', gender: '', phone: '' });
+        setForm({ name: '', email: '', password: '', role_id: '', gender: '', phone: '', country_code: '91', dob: '' });
         setImagePreview('');
       }
       setImageFile(null);
@@ -186,21 +189,25 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
 
     const fd = new FormData();
     if (isEdit) {
-      if (form.name)                fd.append('name',     form.name.trim());
-      if (form.email)               fd.append('email',    form.email.trim());
+      if (form.name)                fd.append('name',         form.name.trim());
+      if (form.email)               fd.append('email',        form.email.trim());
       if (changePassword && form.password) fd.append('password', form.password);
-      if (form.role_id)             fd.append('role_id',  form.role_id);
-      if (form.gender)              fd.append('gender',   form.gender);
-      if (form.phone)               fd.append('phone',    form.phone.trim());
-      if (imageFile)                fd.append('image',    imageFile);
+      if (form.role_id)             fd.append('role_id',      form.role_id);
+      if (form.gender)              fd.append('gender',       form.gender);
+      if (form.phone)               fd.append('phone',        form.phone.trim());
+      if (form.country_code)        fd.append('country_code', form.country_code);
+      if (form.dob)                 fd.append('dob',          form.dob);
+      if (imageFile)                fd.append('image',        imageFile);
     } else {
       fd.append('name',     form.name.trim());
       fd.append('email',    form.email.trim());
       fd.append('password', form.password);
       fd.append('role_id',  form.role_id);
-      if (form.gender) fd.append('gender', form.gender);
-      if (form.phone)  fd.append('phone',  form.phone.trim());
-      if (imageFile)   fd.append('image',  imageFile);
+      if (form.gender)       fd.append('gender',       form.gender);
+      if (form.phone)        fd.append('phone',        form.phone.trim());
+      if (form.country_code) fd.append('country_code', form.country_code);
+      if (form.dob)          fd.append('dob',          form.dob);
+      if (imageFile)         fd.append('image',        imageFile);
     }
 
     setIsLoading(true);
@@ -346,13 +353,29 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             />
           </Box>
 
+          {/* DOB + Phone */}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextInput
+              label="Date of Birth"
+              type="date"
+              value={form.dob}
+              onChange={(e) => setField('dob', e.target.value)}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: new Date().toISOString().slice(0, 10) } }}
+              error={fieldErrors.dob}
+            />
+          </Box>
+
           {/* Phone */}
-          <TextInput
+          <PhoneInput
             label="Phone"
             value={form.phone}
-            onChange={(e) => setField('phone', e.target.value)}
-            onBlur={() => handleBlur('phone')}
+            dialCode={form.country_code}
+            onChange={(phoneNumber, dialCode) => {
+              setField('phone', phoneNumber);
+              setField('country_code', dialCode);
+            }}
             error={fieldErrors.phone}
+            disabled={isLoading}
           />
         </Box>
 

@@ -131,7 +131,7 @@ function FormModal({ open, itemId, itemData, onClose, onSaved, fixedProductId })
   useEffect(() => {
     if (open) {
       setProductsLoading(true);
-      apiPost('/products/list', { page: 1, limit: 100 })
+      apiPost('/admin/products/list', { page: 1, limit: 100 })
         .then((res) => setProducts(res?.data?.data ?? []))
         .catch(() => setProducts([]))
         .finally(() => setProductsLoading(false));
@@ -528,7 +528,7 @@ export default function ProductVariantsPage() {
 
   // fetch products for toolbar filter
   useEffect(() => {
-    apiPost('/products/list', { page: 1, limit: 100 })
+    apiPost('/admin/products/list', { page: 1, limit: 100 })
       .then((res) => setProducts(res?.data?.data ?? []))
       .catch(() => {});
   }, []);

@@ -7,9 +7,13 @@ import {
   getStoredUser,
   getStoredToken,
   getStoredRefreshToken,
+  getStoredPermissions,
   loginRequest,
+  sendLoginOtpRequest,
+  verifyLoginOtpRequest,
   refreshTokenRequest,
   saveAuthData,
+  fetchAndStorePermissions,
 } from '@/lib/auth';
 
 // ─── State shape ─────────────────────────────────────────────────────────────
@@ -17,6 +21,7 @@ const initialState = {
   admin:           null,   // user object from API
   token:           null,
   refreshToken:    null,
+  permissions:     null,   // permissions from /permissions/detail
   isAuthenticated: false,
   isLoading:       true,   // true until we've checked localStorage
   sidebarOpen:     true,
@@ -32,6 +37,7 @@ function adminReducer(state, action) {
         admin:           action.payload.user,
         token:           action.payload.token,
         refreshToken:    action.payload.refreshToken,
+        permissions:     action.payload.permissions ?? null,
         isAuthenticated: !!action.payload.token,
         isLoading:       false,
       };
@@ -42,8 +48,15 @@ function adminReducer(state, action) {
         admin:           action.payload.user,
         token:           action.payload.token,
         refreshToken:    action.payload.refreshToken,
+        permissions:     action.payload.permissions ?? null,
         isAuthenticated: true,
         isLoading:       false,
+      };
+
+    case 'PERMISSIONS_LOADED':
+      return {
+        ...state,
+        permissions: action.payload,
       };
 
     case 'TOKEN_REFRESHED':
@@ -59,6 +72,7 @@ function adminReducer(state, action) {
         admin:           null,
         token:           null,
         refreshToken:    null,
+        permissions:     null,
         isAuthenticated: false,
         isLoading:       false,
       };
@@ -86,17 +100,41 @@ export function AdminProvider({ children }) {
     const token        = getStoredToken();
     const refreshToken = getStoredRefreshToken();
     const user         = getStoredUser();
+    const permissions  = getStoredPermissions();
 
     dispatch({
       type:    'HYDRATE',
-      payload: { user: user || null, token: token || null, refreshToken: refreshToken || null },
+      payload: {
+        user:         user  || null,
+        token:        token || null,
+        refreshToken: refreshToken || null,
+        permissions:  permissions  || null,
+      },
     });
+
+    // If we have a token but no cached permissions, fetch them in the background
+    if (token && !permissions) {
+      fetchAndStorePermissions(user?.role_id).then((permissions) => {
+        if (permissions) {
+          dispatch({ type: 'PERMISSIONS_LOADED', payload: permissions });
+        }
+      });
+    }
   }, []);
 
-  // ── login ────────────────────────────────────────────────────────────────
-  const login = useCallback(async (email, password) => {
-    const { user, token, refreshToken } = await loginRequest(email, password);
-    dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token, refreshToken } });
+  // ── login (email + password, or phone + password) ───────────────────────
+  const login = useCallback(async (identifier, password, isPhone = false) => {
+    const { user, token, refreshToken } = await loginRequest(identifier, password, isPhone);
+    const permissions = await fetchAndStorePermissions(user.role_id);
+    dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token, refreshToken, permissions } });
+    return user;
+  }, []);
+
+  // ── loginWithOtp (phone or email + OTP) ──────────────────────────────────────
+  const loginWithOtp = useCallback(async (identifier, otp, isEmail = false) => {
+    const { user, token, refreshToken } = await verifyLoginOtpRequest(identifier, otp, isEmail);
+    const permissions = await fetchAndStorePermissions(user.role_id);
+    dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token, refreshToken, permissions } });
     return user;
   }, []);
 
@@ -128,10 +166,12 @@ export function AdminProvider({ children }) {
     // Convenience accessors
     admin:           state.admin,
     token:           state.token,
+    permissions:     state.permissions,
     isAuthenticated: state.isAuthenticated,
     isLoading:       state.isLoading,
     // Auth actions
     login,
+    loginWithOtp,
     logout,
     refreshAccessToken,
   };

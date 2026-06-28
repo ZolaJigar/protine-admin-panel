@@ -311,7 +311,7 @@ function LogsPageInner() {
   const isFiltered = !!(search || filterStatus || filterUserId);
 
   return (
-    <AdminShell requiredPermission="login_logs_list">
+    <AdminShell requiredPermission="log_list">
       {/* ── Header ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>

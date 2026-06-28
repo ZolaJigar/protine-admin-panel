@@ -13,43 +13,58 @@ import { useAdmin } from '@/context/AdminContext';
 
 // Map path segments to human-readable labels
 const SEGMENT_LABELS = {
-  '':           'Dashboard',
-  'products':   'Products',
-  'categories': 'Categories',
-  'orders':     'Orders',
-  'users':      'Users',
-  'logs':       'Login Logs',
-  'roles':      'Roles',
-  'countries':  'Countries',
-  'states':     'States',
+  '':                  'Home',
+  'products':          'Products',
+  'categories':        'Categories',
+  'orders':            'Orders',
+  'carts':             'Carts',
+  'users':             'Users',
+  'logs':              'Login Logs',
+  'roles':             'Roles',
+  'countries':         'Countries',
+  'states':            'States',
   'cities':            'Cities',
+  'banners':           'Banners',
+  'wishlist':          'Wishlist',
+  'contact-us':        'Contact Us',
+  'themes':            'Themes',
+  'addresses':         'Addresses',
   'product-variants':  'Product Variants',
-  'invoices':          'Invoices',
-  'delivery':   'Delivery',
-  'support':    'Support',
-  'analytics':  'Analytics',
-  'settings':   'Settings',
-  'add':        'Add',
-  'edit':       'Edit',
-  'view':       'View',
+  'analytics':         'Analytics',
+  'settings':          'Settings',
+  'add':               'Add',
+  'edit':              'Edit',
+  'view':              'View',
 };
 
+// Segments that live under the "Masters" virtual group
+const MASTERS_SEGMENTS = new Set(['countries', 'states', 'cities', 'banners', 'wishlist', 'contact-us', 'themes', 'addresses']);
+
 function buildBreadcrumbs(pathname) {
-  if (pathname === '/') return [{ label: 'Dashboard', href: '/' }];
+  // Always start with non-clickable Home
+  const crumbs = [{ label: 'Home', href: null }];
+
+  if (pathname === '/') return crumbs;
+
   const segments = pathname.split('/').filter(Boolean);
-  const crumbs = [];
   let path = '';
+
   segments.forEach((seg) => {
     path += '/' + seg;
-    // skip dynamic [id] segments — use the previous segment's label + " Detail"
     const isDynamic = /^\d+$/.test(seg) || (seg.startsWith('[') && seg.endsWith(']'));
-    if (!isDynamic) {
-      crumbs.push({
-        label: SEGMENT_LABELS[seg] ?? seg.charAt(0).toUpperCase() + seg.slice(1),
-        href: path,
-      });
+    if (isDynamic) return;
+
+    // Inject non-clickable "Masters" before country/state/city
+    if (MASTERS_SEGMENTS.has(seg) && !crumbs.some((c) => c.label === 'Masters')) {
+      crumbs.push({ label: 'Masters', href: null });
     }
+
+    crumbs.push({
+      label: SEGMENT_LABELS[seg] ?? seg.charAt(0).toUpperCase() + seg.slice(1),
+      href: path,
+    });
   });
+
   return crumbs;
 }
 
@@ -91,23 +106,33 @@ export default function AdminTopbar({ sidebarWidth }) {
           {crumbs.map((crumb, idx) => {
             const isLast = idx === crumbs.length - 1;
             return (
-              <Box key={crumb.href} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+              <Box key={`${crumb.label}-${idx}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
                 {idx > 0 && (
                   <NavigateNext sx={{ fontSize: 16, color: 'text.disabled', flexShrink: 0 }} />
                 )}
                 {isLast ? (
+                  // Last crumb — bold, non-clickable
                   <Typography
                     variant="subtitle1"
                     sx={{ fontWeight: 700, color: '#1B4332', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                   >
                     {crumb.label}
                   </Typography>
-                ) : (
+                ) : crumb.href ? (
+                  // Middle crumb with a real href — clickable
                   <Typography
                     component={Link}
                     href={crumb.href}
                     variant="body2"
                     sx={{ color: 'text.secondary', textDecoration: 'none', whiteSpace: 'nowrap', '&:hover': { color: '#1B4332', textDecoration: 'underline' } }}
+                  >
+                    {crumb.label}
+                  </Typography>
+                ) : (
+                  // No href — plain text, not clickable (Home, Masters)
+                  <Typography
+                    variant="body2"
+                    sx={{ color: 'text.disabled', whiteSpace: 'nowrap', cursor: 'default' }}
                   >
                     {crumb.label}
                   </Typography>

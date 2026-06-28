@@ -216,32 +216,52 @@ export const apiPostFile = (apiURL = '/URL_HERE', data = {}, params = {}) => {
 
 export const authAPI = {
   login:          (data) => apiPost('/auth/login', data),
+  sendLoginOtp:   (data) => apiPost('/auth/send-login-otp', data),
+  verifyLoginOtp: (data) => apiPost('/auth/verify-login-otp', data),
   forgotPassword: (data) => apiPost('/auth/forgot-password', data),
   resetPassword:  (data) => apiPost('/auth/reset-password', data),
   refreshToken:   (data) => apiPost('/auth/refresh-token', data),
 };
 
 export const categoriesAPI = {
-  list:    (params)       => apiPost('/categories/list', params),
-  getById: (id)           => apiGet(`/categories/${id}`),
-  create:  (formData)     => apiPost('/categories/create', formData, {}, 'multipart/form-data'),
-  update:  (id, formData) => apiPut(`/categories/update/${id}`, formData, {}, 'multipart/form-data'),
-  delete:  (id)           => apiDelete(`/categories/delete/${id}`),
+  list:    (params)       => apiPost('/admin/categories/list', params),
+  getById: (id)           => apiGet(`/admin/categories/${id}`),
+  create:  (formData)     => apiPost('/admin/categories/create', formData, {}, 'multipart/form-data'),
+  update:  (id, formData) => apiPut(`/admin/categories/update/${id}`, formData, {}, 'multipart/form-data'),
+  delete:  (id)           => apiDelete(`/admin/categories/delete/${id}`),
 };
 
 export const productsAPI = {
-  list:    (params)       => apiPost('/products/list', params),
-  getById: (id)           => apiGet(`/products/${id}`),
-  create:  (formData)     => apiPost('/products/create', formData, {}, 'multipart/form-data'),
-  update:  (id, formData) => apiPut(`/products/update/${id}`, formData, {}, 'multipart/form-data'),
-  delete:  (id)           => apiDelete(`/products/delete/${id}`),
+  list:    (params)       => apiPost('/admin/products/list', params),
+  getById: (id)           => apiGet(`/admin/products/${id}`),
+  create:  (formData)     => apiPost('/admin/products/create', formData, {}, 'multipart/form-data'),
+  update:  (id, formData) => apiPut(`/admin/products/update/${id}`, formData, {}, 'multipart/form-data'),
+  delete:  (id)           => apiDelete(`/admin/products/delete/${id}`),
 };
 
 export const ordersAPI = {
-  getAll:       (params)       => apiGet('/orders', params),
-  getById:      (id)           => apiGet(`/orders/${id}`),
-  updateStatus: (id, status)   => apiPut(`/orders/${id}/status`, { status }),
-  cancel:       (id)           => apiPut(`/orders/${id}/cancel`),
+  list:             (params)   => apiPost('/admin/orders/list', params),
+  getById:          (id)       => apiGet(`/admin/orders/${id}`),
+  updateStatus:     (id, data) => apiPut(`/admin/orders/update-status/${id}`, data),
+  cancel:           (id, data) => apiPut(`/admin/orders/cancel/${id}`, data),
+  create:           (data)     => apiPost('/admin/orders/create', data),
+  getUserAddresses: (params)   => apiPost('/admin/addresses/list', params),
+  invoiceViewUrl:   (id)       => `${BASE_URL}/admin/orders/invoice/view/${id}`,
+  invoiceDownload:  async (id) => {
+    const token = getToken();
+    const res   = await fetch(`${BASE_URL}/admin/orders/invoice/download/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Invoice not found');
+    const disposition = res.headers.get('Content-Disposition') ?? '';
+    const match       = disposition.match(/filename="?([^";\n]+)"?/);
+    const filename    = match?.[1] ?? `invoice-${id}.pdf`;
+    const blob        = await res.blob();
+    const url         = URL.createObjectURL(blob);
+    const a           = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export const usersAPI = {
@@ -262,7 +282,8 @@ export const rolesAPI = {
 };
 
 export const permissionsAPI = {
-  list: (params) => apiPost('/permissions/list', params),
+  list:   (params)  => apiPost('/permissions/list', params),
+  detail: (role_id) => apiPost('/permissions/detail', { role_id }),
 };
 
 export const countriesAPI = {
@@ -314,7 +335,50 @@ export const supportAPI = {
   closeTicket:   (id)       => apiPut(`/support/tickets/${id}/close`),
 };
 
+export const bannersAPI = {
+  list:         (params)       => apiPost('/admin/banners/list', params),
+  getById:      (id)           => apiGet(`/admin/banners/${id}`),
+  create:       (formData)     => apiPost('/admin/banners/create', formData, {}, 'multipart/form-data'),
+  update:       (id, formData) => apiPut(`/admin/banners/update/${id}`, formData, {}, 'multipart/form-data'),
+  delete:       (id)           => apiDelete(`/admin/banners/delete/${id}`),
+  toggleStatus: (id, data)     => apiPatch(`/admin/banners/update/status/${id}`, data),
+};
+
+export const addressesAPI = {
+  list:   (params) => apiPost('/addresses/list', params),
+  delete: (id)     => apiDelete(`/addresses/delete/${id}`),
+};
+
+export const themesAPI = {
+  list:    (params)       => apiPost('/admin/themes/list', params),
+  getById: (id)           => apiGet(`/admin/themes/${id}`),
+  create:  (formData)     => apiPost('/admin/themes/create', formData, {}, 'multipart/form-data'),
+  update:  (id, formData) => apiPut(`/admin/themes/update/${id}`, formData, {}, 'multipart/form-data'),
+  delete:  (id)           => apiDelete(`/admin/themes/delete/${id}`),
+};
+
+export const contactUsAPI = {
+  list:    (params) => apiGet('/contact-us/list', params),
+  getById: (id)     => apiGet(`/contact-us/${id}`),
+  delete:  (id)     => apiDelete(`/contact-us/delete/${id}`),
+};
+
+export const wishlistAPI = {
+  list:   (params) => apiGet('/wishlist/list', params),
+  delete: (id)     => apiDelete(`/wishlist/delete/${id}`),
+};
+
 export const analyticsAPI = {
-  getDashboard: ()       => apiGet('/admin/analytics/dashboard'),
   getRevenue:   (params) => apiGet('/admin/analytics/revenue', params),
+};
+
+export const cartsAPI = {
+  list:         (params)       => apiPost('/cart/list', params),
+  getById:      (id)           => apiGet(`/cart/${id}`),
+  getByUserId:  (userId)       => apiGet(`/cart/user/${userId}`),
+  addItem:      (data)         => apiPost('/cart/admin/add-item', data),
+  updateItem:   (itemId, data) => apiPut(`/cart/update-item/${itemId}`, data),
+  removeItem:   (itemId)       => apiDelete(`/cart/remove-item/${itemId}`),
+  clear:        (cartId)       => apiDelete(`/cart/clear/${cartId}`),
+  updateStatus: (cartId, data) => apiPut(`/cart/update-status/${cartId}`, data),
 };

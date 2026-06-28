@@ -6,73 +6,69 @@ import { useAdmin } from '@/context/AdminContext';
 /**
  * usePermissions
  *
- * Reads the logged-in admin's permission slugs and exposes:
- *   can(slug)        → boolean  — true if the admin has this permission
- *   canAny(...slugs) → boolean  — true if the admin has at least one
- *   canAll(...slugs) → boolean  — true if the admin has all of them
- *   isSuperAdmin     → boolean  — true when role slug is 'super_admin' (bypass all)
- *   permissionSlugs  → Set<string>
+ * Reads the logged-in admin's permissions from context.permissions which has
+ * the shape returned by /one/permissions/detail:
+ *   {
+ *     operations: string[],  // e.g. ["users_list", "users_create", ...]
+ *     menu:       string[],  // e.g. ["users", "roles", ...]
+ *     tabs:       string[],  // e.g. ["masters"]
+ *   }
  *
- * Permission slugs are sourced from:
- *   admin.rolePermissions[].permission.slug   (populated relation)
- *   OR admin.permissions[].slug               (flat array)
- *   OR admin.role.rolePermissions[].permission.slug
- *
- * Super-admins bypass every check.
+ * Exposes:
+ *   can(op)          → boolean  — true if op is in operations
+ *   canAny(...ops)   → boolean  — true if at least one op is in operations
+ *   canAll(...ops)   → boolean  — true if all ops are in operations
+ *   hasMenu(key)     → boolean  — true if key is in menu array
+ *   hasTab(key)      → boolean  — true if key is in tabs array
+ *   isSuperAdmin     → boolean  — true when role_id === 1 (bypasses all checks)
+ *   operations       → Set<string>
+ *   menu             → Set<string>
+ *   tabs             → Set<string>
  */
 export function usePermissions() {
-  const { admin } = useAdmin();
+  const { admin, permissions } = useAdmin();
 
-  const { permissionSlugs, isSuperAdmin } = useMemo(() => {
-    if (!admin) return { permissionSlugs: new Set(), isSuperAdmin: false };
+  const { operations, menu, tabs, isSuperAdmin } = useMemo(() => {
+    // role_id 1 is super admin — bypass all permission checks
+    const superAdmin = admin?.role_id === 1;
 
-    const superAdmin =
-      admin?.role?.slug === 'super_admin' ||
-      admin?.role?.slug === 'superadmin'  ||
-      admin?.roleName   === 'super_admin';
+    const ops = new Set(Array.isArray(permissions?.operations) ? permissions.operations : []);
+    const mn  = new Set(Array.isArray(permissions?.menu)       ? permissions.menu       : []);
+    const tb  = new Set(Array.isArray(permissions?.tabs)       ? permissions.tabs       : []);
 
-    const slugs = new Set();
+    return { operations: ops, menu: mn, tabs: tb, isSuperAdmin: superAdmin };
+  }, [admin, permissions]);
 
-    // Source 1: admin.role.rolePermissions[].permission.slug  ← actual API shape
-    if (Array.isArray(admin?.role?.rolePermissions)) {
-      admin.role.rolePermissions.forEach((rp) => {
-        if (rp?.permission?.slug) slugs.add(rp.permission.slug);
-      });
-    }
-
-    // Source 2: admin.rolePermissions[].permission.slug  (fallback)
-    if (Array.isArray(admin.rolePermissions)) {
-      admin.rolePermissions.forEach((rp) => {
-        if (rp?.permission?.slug) slugs.add(rp.permission.slug);
-        if (rp?.slug) slugs.add(rp.slug);
-      });
-    }
-
-    // Source 3: admin.permissions[].slug  (fallback)
-    if (Array.isArray(admin.permissions)) {
-      admin.permissions.forEach((p) => {
-        if (p?.slug) slugs.add(p.slug);
-      });
-    }
-
-    return { permissionSlugs: slugs, isSuperAdmin: superAdmin };
-  }, [admin]);
-
-  const can = (slug) => {
-    if (!slug) return true;
+  /** Check a single operation slug, e.g. can('users_list') */
+  const can = (op) => {
+    if (!op) return true;
     if (isSuperAdmin) return true;
-    return permissionSlugs.has(slug);
+    return operations.has(op);
   };
 
-  const canAny = (...slugs) => {
+  /** True if the admin has at least one of the given operations */
+  const canAny = (...ops) => {
     if (isSuperAdmin) return true;
-    return slugs.flat().some((s) => permissionSlugs.has(s));
+    return ops.flat().some((o) => operations.has(o));
   };
 
-  const canAll = (...slugs) => {
+  /** True if the admin has all of the given operations */
+  const canAll = (...ops) => {
     if (isSuperAdmin) return true;
-    return slugs.flat().every((s) => permissionSlugs.has(s));
+    return ops.flat().every((o) => operations.has(o));
   };
 
-  return { can, canAny, canAll, isSuperAdmin, permissionSlugs };
+  /** Check sidebar/menu visibility, e.g. hasMenu('users') */
+  const hasMenu = (key) => {
+    if (isSuperAdmin) return true;
+    return menu.has(key);
+  };
+
+  /** Check tab visibility, e.g. hasTab('masters') */
+  const hasTab = (key) => {
+    if (isSuperAdmin) return true;
+    return tabs.has(key);
+  };
+
+  return { can, canAny, canAll, hasMenu, hasTab, isSuperAdmin, operations, menu, tabs };
 }
