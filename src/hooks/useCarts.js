@@ -28,21 +28,22 @@ export function useCarts(initialUserId = null) {
   const [stats,        setStats]        = useState({ total: null, active: null, converted: null, abandoned: null });
   const [statsLoading, setStatsLoading] = useState(false);
 
-  // ── Fetch stats ───────────────────────────────────────────────────────────
+  // ── Fetch stats via analytics endpoint ───────────────────────────────────
   const fetchStats = () => {
     setStatsLoading(true);
-    Promise.all([
-      cartsAPI.list({ page: 1, limit: 1 }),
-      cartsAPI.list({ page: 1, limit: 1, status: 'active' }),
-      cartsAPI.list({ page: 1, limit: 1, status: 'converted' }),
-      cartsAPI.list({ page: 1, limit: 1, status: 'abandoned' }),
-    ])
-      .then(([total, active, converted, abandoned]) => {
+    cartsAPI.analytics()
+      .then((res) => {
+        const d = res?.data ?? {};
+        // Build per-status counts from cartsByStatus array
+        const byStatus = {};
+        (d.cartsByStatus ?? []).forEach(({ status, count }) => {
+          byStatus[status] = Number(count);
+        });
         setStats({
-          total:     total?.data?.count     ?? 0,
-          active:    active?.data?.count    ?? 0,
-          converted: converted?.data?.count ?? 0,
-          abandoned: abandoned?.data?.count ?? 0,
+          total:     d.totalCarts  ?? 0,
+          active:    byStatus.active    ?? 0,
+          converted: byStatus.converted ?? 0,
+          abandoned: byStatus.abandoned ?? 0,
         });
       })
       .catch(() => {})

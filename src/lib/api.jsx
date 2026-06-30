@@ -373,12 +373,12 @@ export const analyticsAPI = {
 };
 
 export const cartsAPI = {
-  list:         (params)       => apiPost('/cart/list', params),
-  getById:      (id)           => apiGet(`/cart/${id}`),
-  getByUserId:  (userId)       => apiGet(`/cart/user/${userId}`),
-  addItem:      (data)         => apiPost('/cart/admin/add-item', data),
-  updateItem:   (itemId, data) => apiPut(`/cart/update-item/${itemId}`, data),
-  removeItem:   (itemId)       => apiDelete(`/cart/remove-item/${itemId}`),
-  clear:        (cartId)       => apiDelete(`/cart/clear/${cartId}`),
-  updateStatus: (cartId, data) => apiPut(`/cart/update-status/${cartId}`, data),
+  list:         (params)       => apiPost('/admin/carts/list', params),
+  getById:      (id)           => apiGet(`/admin/carts/${id}`),
+  analytics:    ()             => apiGet('/admin/carts/analytics'),
+  addItem:      (data)         => apiPost('/admin/carts/admin/add-item', data),
+  updateItem:   (itemId, data) => apiPut(`/admin/carts/update-item/${itemId}`, data),
+  removeItem:   (itemId)       => apiDelete(`/admin/carts/remove-item/${itemId}`),
+  clear:        (cartId)       => apiDelete(`/admin/carts/clear/${cartId}`),
+  updateStatus: (cartId, data) => apiPut(`/admin/carts/update-status/${cartId}`, data),
 };

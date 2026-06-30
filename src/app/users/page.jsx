@@ -378,6 +378,84 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
   );
 }
 
+// ─── View Modal ───────────────────────────────────────────────────────────────
+function ViewModal({ open, itemData, onClose, onEdit, canEdit }) {
+  const ref = useRef(itemData);
+  if (itemData) ref.current = itemData;
+  const item = ref.current;
+  if (!item) return null;
+
+  const phone = item.phone;
+  const cc    = item.country_code;
+  const phoneDisplay = phone ? (cc ? `+${cc} ${phone}` : phone) : '—';
+
+  const roleColor = getRoleColors(item.role?.slug);
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="User Details"
+      maxWidth="sm"
+      actions={
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {canEdit && item.role?.slug !== 'super_admin' && (
+            <Button
+              variant="contained"
+              startIcon={<Edit />}
+              onClick={() => { onClose(); onEdit(item); }}
+              sx={{ background: 'linear-gradient(135deg, #1B4332, #2D6A4F)' }}
+            >
+              Edit
+            </Button>
+          )}
+          <Button variant="outlined" onClick={onClose}>Close</Button>
+        </Box>
+      }
+    >
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+
+        {/* Avatar + name + role */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, pb: 2, borderBottom: '1px solid #F1F5F0' }}>
+          <UserAvatar src={item.image} name={item.name} size={64} />
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: '#1B4332', lineHeight: 1.2 }}>
+                {item.name}
+              </Typography>
+              {item.role?.slug === 'super_admin' && <Lock sx={{ fontSize: 14, color: '#B91C1C' }} />}
+            </Box>
+            <Chip
+              label={item.role?.name || '—'}
+              size="small"
+              sx={{ ...roleColor, fontWeight: 700, borderRadius: 1.5, fontSize: 11, mt: 0.5 }}
+            />
+          </Box>
+        </Box>
+
+        {/* Detail rows */}
+        {[
+          { label: 'Email',    value: item.email || '—' },
+          { label: 'Phone',    value: <Typography variant="body2" sx={{ fontFamily: phoneDisplay !== '—' ? 'monospace' : 'inherit' }}>{phoneDisplay}</Typography> },
+          { label: 'Gender',   value: item.gender || '—' },
+          { label: 'DOB',      value: item.dob ? new Date(item.dob).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+          { label: 'Created',  value: formatDate(item.createdAt) },
+          { label: 'Updated',  value: formatDate(item.updatedAt) },
+        ].map(({ label, value }) => (
+          <Box key={label} sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Typography sx={{ width: 90, fontWeight: 700, color: 'text.secondary', fontSize: 13, flexShrink: 0, pt: 0.2 }}>
+              {label}
+            </Typography>
+            <Typography component="div" sx={{ flex: 1, fontSize: 14 }}>
+              {value}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+    </Modal>
+  );
+}
+
 // ─── Delete Modal ─────────────────────────────────────────────────────────────
 function DeleteModal({ open, itemId, itemName, onClose, onDeleted }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -418,6 +496,7 @@ export default function UsersPage() {
   const [openAdd, setOpenAdd]               = useState(false);
   const [openEdit, setOpenEdit]             = useState(false);
   const [openDelete, setOpenDelete]         = useState(false);
+  const [openView, setOpenView]             = useState(false);
   const [count, setCount]                   = useState(0);
   const [offset, setOffset]                 = useState(0);
   const [pageValue, setPageValue]           = useState(0);
@@ -465,9 +544,11 @@ export default function UsersPage() {
 
   const handleOpenEdit   = (row) => { setItemId(row.id); setItemData(row); setOpenEdit(true); };
   const handleOpenDelete = (row) => { setItemId(row.id); setItemData(row); setOpenDelete(true); };
+  const handleOpenView   = (row) => { setItemData(row); setOpenView(true); };
   const handleCloseAdd   = () => setOpenAdd(false);
   const handleCloseEdit  = () => { setOpenEdit(false);   setItemId(null); setItemData(null); };
   const handleCloseDelete = () => { setOpenDelete(false); setItemId(null); setItemData(null); };
+  const handleCloseView  = () => { setOpenView(false); };
 
   // ─── Table columns ──────────────────────────────────────────────────────────
   const columns = [
@@ -492,8 +573,19 @@ export default function UsersPage() {
     },
     { key: 'email',  label: 'Email',
       render: (row) => <Typography variant="body2" sx={{ fontSize: 13 }}>{row.email}</Typography> },
-    { key: 'phone',  label: 'Phone',
-      render: (row) => <Typography variant="body2" sx={{ fontSize: 13, color: 'text.secondary' }}>{row.phone || '—'}</Typography> },
+    {
+      key: 'phone', label: 'Phone',
+      render: (row) => {
+        const phone = row.phone;
+        const cc    = row.country_code;
+        if (!phone) return <Typography variant="body2" sx={{ fontSize: 13, color: 'text.disabled' }}>—</Typography>;
+        return (
+          <Typography variant="body2" sx={{ fontSize: 13, color: 'text.secondary', fontFamily: 'monospace' }}>
+            {cc ? `+${cc} ` : ''}{phone}
+          </Typography>
+        );
+      },
+    },
     { key: 'gender', label: 'Gender',
       render: (row) => <Typography variant="body2" sx={{ fontSize: 13, color: 'text.secondary' }}>{row.gender || '—'}</Typography> },
     {
@@ -512,6 +604,11 @@ export default function UsersPage() {
         const isSuperAdmin = row.role?.slug === 'super_admin';
         return (
           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+            <Tooltip title="View">
+              <IconButton size="small" onClick={() => handleOpenView(row)} sx={{ color: '#0369A1' }}>
+                <Visibility fontSize="small" />
+              </IconButton>
+            </Tooltip>
             {isSuperAdmin ? (
               <Tooltip title="Super admin — protected">
                 <span>
@@ -611,6 +708,14 @@ export default function UsersPage() {
             getData(search, pageValue);
           }
         }}
+      />
+
+      <ViewModal
+        open={openView}
+        itemData={itemData}
+        onClose={handleCloseView}
+        canEdit={canEdit}
+        onEdit={(row) => { handleOpenEdit(row); }}
       />
     </AdminShell>
   );

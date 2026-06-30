@@ -17,18 +17,14 @@ import { bannersAPI } from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
   DEFAULT_LIMIT,
-  ACCEPTED_IMAGE_TYPES,
-  MAX_IMAGE_SIZE,
   BANNER_PAGE_OPTIONS,
   BANNER_PAGE_COLORS,
 } from '@/constants/values';
 import { dateFormat12, validateImageFile } from '@/utils/functions';
 
 // ─── Local aliases ────────────────────────────────────────────────────────────
-const ACCEPTED_TYPES = ACCEPTED_IMAGE_TYPES;
-const MAX_FILE_SIZE  = MAX_IMAGE_SIZE;
-const PAGE_OPTIONS   = BANNER_PAGE_OPTIONS;
-const PAGE_COLORS    = BANNER_PAGE_COLORS;
+const PAGE_OPTIONS = BANNER_PAGE_OPTIONS;
+const PAGE_COLORS  = BANNER_PAGE_COLORS;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDate = dateFormat12;
@@ -107,30 +103,27 @@ function ImageField({ label, required, file, preview, onFile, onRemove }) {
 function FormModal({ open, itemId, itemData, onClose, onSaved }) {
   const isEdit = !!itemId;
 
-  const EMPTY = { page: '', title: '', description: '', button_text: '', button_link: '', display_order: '1', is_active: true };
+  const EMPTY = { title: '', description: '', page: '', is_active: true };
 
-  const [isLoading, setIsLoading]           = useState(false);
-  const [form, setForm]                     = useState(EMPTY);
-  const [imageFile, setImageFile]           = useState(null);
-  const [imagePreview, setImagePreview]     = useState('');
-  const [mobileFile, setMobileFile]         = useState(null);
-  const [mobilePreview, setMobilePreview]   = useState('');
-  const [fieldErrors, setFieldErrors]       = useState({});
-  const [generalError, setGeneralError]     = useState('');
+  const [isLoading, setIsLoading]         = useState(false);
+  const [form, setForm]                   = useState(EMPTY);
+  const [imageFile, setImageFile]         = useState(null);
+  const [imagePreview, setImagePreview]   = useState('');
+  const [mobileFile, setMobileFile]       = useState(null);
+  const [mobilePreview, setMobilePreview] = useState('');
+  const [fieldErrors, setFieldErrors]     = useState({});
+  const [generalError, setGeneralError]   = useState('');
 
   useEffect(() => {
     if (!open) return;
     if (isEdit && itemData) {
       setForm({
-        page:          itemData.page          || '',
-        title:         itemData.title         || '',
-        description:   itemData.description   || '',
-        button_text:   itemData.button_text   || '',
-        button_link:   itemData.button_link   || '',
-        display_order: itemData.display_order != null ? String(itemData.display_order) : '1',
-        is_active:     itemData.is_active !== undefined ? !!itemData.is_active : true,
+        title:       itemData.title       || '',
+        description: itemData.description || '',
+        page:        itemData.page        || '',
+        is_active:   itemData.is_active !== undefined ? !!itemData.is_active : true,
       });
-      setImagePreview(itemData.image        || '');
+      setImagePreview(itemData.image         || '');
       setMobilePreview(itemData.mobile_image || '');
     } else {
       setForm(EMPTY);
@@ -150,25 +143,23 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
   };
 
   const validateField = (k, v) => {
-    if (k === 'page')  return !v             ? 'Page is required'               : '';
-    if (k === 'title') return !v.trim()      ? 'Title is required'
-                            : v.length > 255 ? 'Max 255 characters'             : '';
-    if (k === 'description')   return v.length > 255 ? 'Max 255 characters'    : '';
-    if (k === 'button_text')   return v.length > 100 ? 'Max 100 characters'    : '';
-    if (k === 'button_link')   return v.length > 255 ? 'Max 255 characters'    : '';
-    if (k === 'display_order') return v !== '' && (isNaN(v) || Number(v) < 1)  ? 'Must be a positive integer' : '';
+    if (k === 'title')       return v.length > 255 ? 'Max 255 characters' : '';
+    if (k === 'description') return v.length > 255 ? 'Max 255 characters' : '';
     return '';
   };
 
-  const handleBlur  = (k) => { const m = validateField(k, form[k] ?? ''); if (m) setFieldErrors((p) => ({ ...p, [k]: m })); };
+  const handleBlur = (k) => {
+    const m = validateField(k, form[k] ?? '');
+    if (m) setFieldErrors((p) => ({ ...p, [k]: m }));
+  };
 
   const validate = () => {
     const errs = {};
-    ['page', 'title', 'description', 'button_text', 'button_link', 'display_order'].forEach((k) => {
+    ['title', 'description'].forEach((k) => {
       const m = validateField(k, form[k] ?? '');
       if (m) errs[k] = m;
     });
-    if (!isEdit && !imageFile) errs.image = 'Desktop image is required';
+    if (!isEdit && !imageFile) errs.image = 'Banner image is required';
     return errs;
   };
 
@@ -179,22 +170,19 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
     if (Object.keys(errs).length) { setFieldErrors(errs); return; }
 
     const fd = new FormData();
-    fd.append('page',          form.page);
-    fd.append('title',         form.title.trim());
-    fd.append('is_active',     form.is_active ? 'true' : 'false');
-    if (form.description)   fd.append('description',   form.description.trim());
-    if (form.button_text)   fd.append('button_text',   form.button_text.trim());
-    if (form.button_link)   fd.append('button_link',   form.button_link.trim());
-    if (form.display_order) fd.append('display_order', form.display_order);
-    if (imageFile)          fd.append('image',         imageFile);
-    if (mobileFile)         fd.append('mobile_image',  mobileFile);
+    fd.append('is_active', form.is_active ? 'true' : 'false');
+    if (form.title.trim())       fd.append('title',        form.title.trim());
+    if (form.description.trim()) fd.append('description',  form.description.trim());
+    if (form.page)               fd.append('page',         form.page);
+    if (imageFile)               fd.append('image',        imageFile);
+    if (mobileFile)              fd.append('mobile_image', mobileFile);
 
     setIsLoading(true);
     const call = isEdit ? bannersAPI.update(itemId, fd) : bannersAPI.create(fd);
     call
       .then(() => { toast.success(isEdit ? 'Banner updated!' : 'Banner created!'); onSaved(); onClose(); })
       .catch((err) => {
-        // Map Zod field errors from data[].path[0]
+        // Map field-level errors from data[].path[0] (Zod/validation responses)
         if (err?.data && Array.isArray(err.data)) {
           const mapped = {};
           err.data.forEach((e) => { if (e.path?.[0]) mapped[e.path[0]] = e.message; });
@@ -212,15 +200,15 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           {generalError && <Alert severity="error" sx={{ borderRadius: 2 }}>{generalError}</Alert>}
 
-          {/* Row 1: Page + Title */}
+          {/* Row 1: Title + Page */}
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <Select label="Page *" value={form.page}
-              onChange={(e) => setField('page', e.target.value)} onBlur={() => handleBlur('page')}
-              options={PAGE_OPTIONS.filter((o) => o.value !== '')}
-              error={fieldErrors.page} required fullWidth />
-            <TextInput label="Title *" value={form.title}
+            <TextInput label="Title" value={form.title}
               onChange={(e) => setField('title', e.target.value)} onBlur={() => handleBlur('title')}
-              error={fieldErrors.title} required />
+              error={fieldErrors.title} />
+            <Select label="Page" value={form.page}
+              onChange={(e) => setField('page', e.target.value)}
+              options={PAGE_OPTIONS}
+              error={fieldErrors.page} fullWidth />
           </Box>
 
           {/* Description */}
@@ -228,28 +216,12 @@ function FormModal({ open, itemId, itemData, onClose, onSaved }) {
             onChange={(e) => setField('description', e.target.value)} onBlur={() => handleBlur('description')}
             error={fieldErrors.description} rows={2} />
 
-          {/* Row 2: Button text + link */}
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <TextInput label="Button Text" value={form.button_text}
-              onChange={(e) => setField('button_text', e.target.value)} onBlur={() => handleBlur('button_text')}
-              error={fieldErrors.button_text} />
-            <TextInput label="Button Link" value={form.button_link}
-              placeholder="/products" onChange={(e) => setField('button_link', e.target.value)}
-              onBlur={() => handleBlur('button_link')} error={fieldErrors.button_link} />
-          </Box>
-
-          {/* Row 3: Display order + Active */}
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <TextInput label="Display Order" value={form.display_order}
-              onChange={(e) => setField('display_order', e.target.value)} onBlur={() => handleBlur('display_order')}
-              error={fieldErrors.display_order} sx={{ maxWidth: 160 }}
-              slotProps={{ htmlInput: { inputMode: 'numeric', min: 1 } }} />
-            <FormControlLabel label="Active" control={
-              <Switch checked={!!form.is_active} onChange={(e) => setField('is_active', e.target.checked)}
-                sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#1B4332' },
-                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#1B4332' } }} />
-            } />
-          </Box>
+          {/* Active toggle */}
+          <FormControlLabel label="Active" control={
+            <Switch checked={!!form.is_active} onChange={(e) => setField('is_active', e.target.checked)}
+              sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#1B4332' },
+                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#1B4332' } }} />
+          } />
 
           {/* Images */}
           <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
@@ -419,8 +391,6 @@ export default function BannersPage() {
         return <Chip label={row.page} size="small" sx={{ bgcolor: c.bg, color: c.color, fontWeight: 700, textTransform: 'capitalize' }} />;
       },
     },
-    { key: 'display_order', label: 'Order', align: 'center', width: 70,
-      render: (row) => <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{row.display_order}</Typography> },
     { key: 'is_active', label: 'Status', align: 'center',
       render: (row) => (
         <Tooltip title={row.is_active ? 'Click to deactivate' : 'Click to activate'}>

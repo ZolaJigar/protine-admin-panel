@@ -21,8 +21,8 @@ export function useCartDetail(id) {
   // ── Load cart ─────────────────────────────────────────────────────────────
   const normalizeCart = (raw) => {
     if (!raw) return null;
-    // API returns items[].productVariant — normalize to items[].variant
-    // Also handle empty-cart shape: { cart: null, items: [] }
+    // Detail API returns the cart object directly in res.data
+    // items[].productVariant → normalize to items[].variant
     const cartData = raw?.cart ?? raw;
     if (!cartData || !cartData.id) return null;
     return {
@@ -40,6 +40,7 @@ export function useCartDetail(id) {
     setError('');
     cartsAPI.getById(id)
       .then((res) => {
+        // Response: { status, message, data: { id, ..., items: [...] } }
         const raw = res?.data ?? res;
         setCart(normalizeCart(raw));
       })
